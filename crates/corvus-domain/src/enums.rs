@@ -41,6 +41,15 @@ macro_rules! string_enum {
             }
         }
 
+        impl schemars::JsonSchema for $name {
+            fn schema_name() -> std::borrow::Cow<'static, str> {
+                stringify!($name).into()
+            }
+            fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+                schemars::json_schema!({ "type": "string", "enum": [$($s),+] })
+            }
+        }
+
         impl<'de> serde::Deserialize<'de> for $name {
             fn deserialize<D: serde::Deserializer<'de>>(de: D) -> std::result::Result<Self, D::Error> {
                 let s = <std::borrow::Cow<'de, str> as serde::Deserialize>::deserialize(de)?;

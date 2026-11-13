@@ -1,5 +1,5 @@
 # Development conveniences only; nothing here is needed to build or run Corvus.
-.PHONY: test lint fmt check-purity check-rusqlite check-sql-clock run
+.PHONY: test lint fmt check-purity check-rusqlite check-sql-clock check-seam run
 
 CARGO ?= cargo
 NON_CORE_CRATES := corvus-domain corvus-jira corvus-linear corvus-http corvus-mcp corvus-cli corvus-desktop
@@ -7,7 +7,7 @@ NON_CORE_CRATES := corvus-domain corvus-jira corvus-linear corvus-http corvus-mc
 test:
 	$(CARGO) test --workspace
 
-lint: check-purity check-rusqlite check-sql-clock
+lint: check-purity check-rusqlite check-sql-clock check-seam
 	$(CARGO) fmt --all -- --check
 	$(CARGO) clippy --workspace --all-targets -- -D warnings
 
@@ -40,6 +40,12 @@ check-sql-clock:
 	  crates/corvus-core/migrations crates --include=*.sql --include=*.rs; then \
 	  echo "SQL clock functions are forbidden (D0007); bind :now from the Clock instead"; exit 1; fi
 	@echo "sql clock: ok"
+
+# The unauthenticated inner router is used only by corvus-http (wrapped by serve()) and the desktop app (in memory).
+check-seam:
+	@if grep -rn 'data_router' crates --include=*.rs | grep -vE '^crates/corvus-(http|desktop)/'; then \
+	  echo "data_router() may only be used inside corvus-http and corvus-desktop"; exit 1; fi
+	@echo "http seam: ok"
 
 run:
 	$(CARGO) run -p corvus-cli -- health

@@ -62,3 +62,10 @@ synchronous services are what let one binary serve as CLI, MCP server and hook w
 ## Discussion
 
 - 2026-11-13 — Created with the move to SQLite. Supersedes D0002.
+- 2026-11-13 — Plan 0004 (rmcp 3.10.0, the current release; the plan noted training-era knowledge might be stale).
+  `corvus-mcp` implements `ServerHandler` by hand (`get_info`, `list_tools`, `call_tool`) rather than with the
+  `#[tool]` macros: that keeps the tool table explicit and lets each input schema be generated with
+  `schemars::schema_for!` from the `corvus-core::api` request struct, then adjusted (the remembered agent and
+  session become optional; the HTTP path id becomes a property). Many rmcp types are `#[non_exhaustive]` and are
+  built with constructors (`Tool::new`, `CallToolResult::success/error`, `ListToolsResult::with_all_items`);
+  `serve((reader, writer))` + `.waiting()` runs until the transport closes. The decision stands.

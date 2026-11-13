@@ -13,6 +13,8 @@ path = "src/main.rs"
 [dependencies]
 corvus-domain.workspace = true
 corvus-core.workspace = true
+corvus-http.workspace = true
+corvus-mcp.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

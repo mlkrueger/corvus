@@ -176,6 +176,9 @@ impl Hermod {
     }
 }
 
+/// One watcher check: the new `data_version`, the hints past the cursor, and whether hints were pruned past it.
+type Check = Option<(i64, Vec<(i64, String)>, bool)>;
+
 /// The watcher loop. Runs while there are subscribers; never dies on an error (logs and continues).
 async fn watch(inner: Arc<Inner>, reader: HintReader, mut dv: i64, mut cursor: i64) {
     let reader = Arc::new(Mutex::new(reader));
@@ -193,7 +196,7 @@ async fn watch(inner: Arc<Inner>, reader: HintReader, mut dv: i64, mut cursor: i
             continue;
         }
         let r = reader.clone();
-        let step = tokio::task::spawn_blocking(move || -> Result<Option<(i64, Vec<(i64, String)>, bool)>> {
+        let step = tokio::task::spawn_blocking(move || -> Result<Check> {
             let mut reader = lock(&r);
             let now_dv = reader.data_version()?;
             if now_dv == dv {

@@ -19,8 +19,9 @@ pub const DEFAULT_POLL_SECONDS: u64 = 60;
 pub const MIN_POLL_SECONDS: u64 = 15;
 pub const MIN_TOKEN_LEN: usize = 32;
 
-/// A secret string. `Debug` and `Display` never show it.
-#[derive(Clone, PartialEq, Eq)]
+/// A secret string. `Debug` never shows it, and it has no `PartialEq`: comparing secrets must go through a
+/// constant-time check (system/08).
+#[derive(Clone)]
 pub struct Secret(String);
 
 impl Secret {
@@ -81,7 +82,7 @@ impl fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct JiraConfig {
     pub base_url: String,
     pub email: String,
@@ -91,7 +92,7 @@ pub struct JiraConfig {
     pub ignore_accounts: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct LinearConfig {
     pub api_key: Secret,
     pub poll_seconds: u64,
@@ -99,7 +100,7 @@ pub struct LinearConfig {
     pub ignore_users: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub state_dir: PathBuf,
     pub database_path: PathBuf,
@@ -434,7 +435,7 @@ mod tests {
         assert_eq!(c.state_dir, PathBuf::from("/home/u/.corvus"));
         assert_eq!(c.database_path, PathBuf::from("/home/u/.corvus/corvus.db"));
         assert_eq!(c.env_file, PathBuf::from("/home/u/.config/corvus/env"));
-        assert_eq!(c.api_token, None);
+        assert!(c.api_token.is_none());
         assert_eq!(c.http_port, 8765);
         assert_eq!(c.lease_seconds, 900);
         assert_eq!(c.active_seconds, 120);
@@ -445,8 +446,8 @@ mod tests {
         assert_eq!(c.agent_name, None);
         assert_eq!(c.hook_throttle_seconds, 5);
         assert_eq!(c.log, "info");
-        assert_eq!(c.jira, None);
-        assert_eq!(c.linear, None);
+        assert!(c.jira.is_none());
+        assert!(c.linear.is_none());
     }
 
     #[test]
@@ -620,7 +621,7 @@ mod tests {
     #[test]
     fn empty_values_count_as_unset() {
         let c = cfg(&[("CORVUS_API_TOKEN", ""), ("CORVUS_HTTP_PORT", " ")]).unwrap();
-        assert_eq!(c.api_token, None);
+        assert!(c.api_token.is_none());
         assert_eq!(c.http_port, 8765);
     }
 

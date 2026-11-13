@@ -9,6 +9,7 @@ description = "Pure Corvus domain types and validation. No IO."
 
 [dependencies]
 serde.workspace = true
+schemars.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 

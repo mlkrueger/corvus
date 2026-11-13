@@ -32,11 +32,17 @@ fn two_processes_exchange_a_message_with_a_blocking_wait() {
     let got = json_stdout(&out);
     assert_eq!(got[0]["id"], sent["id"]);
     assert_eq!(got[0]["body"], "ping from another process");
-    assert!(sent_at.elapsed() < Duration::from_secs(3), "woken by the hint, not the 10 s re-check");
+    assert!(
+        sent_at.elapsed() < Duration::from_secs(3),
+        "woken by the hint, not the 10 s re-check"
+    );
     assert!(started.elapsed() < Duration::from_secs(10));
 
     // The reply goes back the same way, in the same direct thread.
-    let reply = ok(&home, &["tell", "operator", "pong", "--from", "bob", "--type", "answer"]);
+    let reply = ok(
+        &home,
+        &["tell", "operator", "pong", "--from", "bob", "--type", "answer"],
+    );
     assert_eq!(reply["thread_id"], sent["thread_id"]);
 }
 
@@ -61,16 +67,51 @@ fn messaging_memory_and_stats_commands() {
     let inbox = ok(&home, &["inbox", "read", "bob"]);
     assert_eq!(inbox.as_array().unwrap().len(), 1);
     let id = m["id"].as_i64().unwrap().to_string();
-    assert_eq!(ok(&home, &["inbox", "ack", &id, "--agent", "bob"])["newly_acked"], true);
+    assert_eq!(
+        ok(&home, &["inbox", "ack", &id, "--agent", "bob"])["newly_acked"],
+        true
+    );
     assert_eq!(ok(&home, &["inbox", "read", "bob"]), serde_json::json!([]));
-    let post = ok(&home, &["msg", "post", "--thread", &thread, "--from", "bob", "--type", "answer", "--in-reply-to", &id, "yes"]);
+    let post = ok(
+        &home,
+        &[
+            "msg",
+            "post",
+            "--thread",
+            &thread,
+            "--from",
+            "bob",
+            "--type",
+            "answer",
+            "--in-reply-to",
+            &id,
+            "yes",
+        ],
+    );
     assert_eq!(post["in_reply_to"].as_i64(), m["id"].as_i64());
     ok(&home, &["digest", "write", "--scope", "global", "all quiet"]);
     assert_eq!(ok(&home, &["digest", "list"])[0]["summary"], "all quiet");
     let d = ok(&home, &["decision", "record", "--title", "Storage", "SQLite"]);
-    ok(&home, &["decision", "record", "--title", "Storage v2", "SQLite, WAL", "--supersedes", d["id"].as_str().unwrap()]);
+    ok(
+        &home,
+        &[
+            "decision",
+            "record",
+            "--title",
+            "Storage v2",
+            "SQLite, WAL",
+            "--supersedes",
+            d["id"].as_str().unwrap(),
+        ],
+    );
     assert_eq!(ok(&home, &["decision", "list"]).as_array().unwrap().len(), 1);
-    assert_eq!(ok(&home, &["decision", "list", "--all"]).as_array().unwrap().len(), 2);
+    assert_eq!(
+        ok(&home, &["decision", "list", "--all"])
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
     let b = ok(&home, &["bootstrap", "bob"]);
     assert_eq!(b["decisions"].as_array().unwrap().len(), 1);
     let s = ok(&home, &["stats"]);

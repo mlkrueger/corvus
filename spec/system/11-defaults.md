@@ -54,6 +54,12 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 44 | `connect` transactions | Two: the registration, then one read for the bootstrap | Registration must commit before it can be read back |
 | 45 | `list_messages(unread_only)` | Messages someone in their audience has not acked | The operator view has no single "me" |
 | 46 | Overview sessions | Live sessions plus those ended in the last 24 h | Shows who just left without growing forever |
+| 47 | HTTP success status | Always 200 (no 201) | Clients ship in the same binary; one rule is simpler |
+| 48 | `GET /api/digests/latest` with no digest | 200 with `null` | Absence is a normal answer, not an error |
+| 49 | `POST /api/admin/export` with an empty body | Treated as the default request | The common call has no options |
+| 50 | Wrong method on a known path | 405 with an empty body (plus the security headers) | axum's default; not a data route |
+| 51 | MCP session fill | Remembered `session_id` is filled only when the call's agent fields resolve to the remembered agent | A call made "as someone else" must not borrow this session |
+| 52 | HTTP shutdown grace | In-flight requests get 5 s after the signal | Long polls must not hold shutdown for 120 s |
 
 ## Deliberate departures from the brief's wording
 

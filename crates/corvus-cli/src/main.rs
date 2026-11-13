@@ -81,6 +81,10 @@ enum Command {
     Bootstrap { agent: String },
     /// Queue and inbox counts.
     Stats,
+    /// The MCP server over stdio. Needs no server, token or port.
+    Mcp,
+    /// The HTTP API on 127.0.0.1 (requires CORVUS_API_TOKEN).
+    Serve,
     /// Administrative commands.
     Admin {
         #[command(subcommand)]
@@ -316,6 +320,7 @@ enum AdminCommand {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match run(cli) {
+        Ok(Value::Null) => ExitCode::SUCCESS,
         Ok(v) => {
             print_json(&v);
             ExitCode::SUCCESS
@@ -378,6 +383,29 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         Command::Decision { command } => decision_cmd(&services(&config)?, &config, command),
         Command::Bootstrap { agent } => json(services(&config)?.muninn().bootstrap(&agent)),
         Command::Stats => json(services(&config)?.overview().stats()),
+        Command::Mcp => {
+            let (corvus, _) = corvus_core::Corvus::open(&config)?;
+            runtime()?.block_on(corvus_mcp::run_stdio(corvus, config.agent_name.clone()))?;
+            Ok(Value::Null)
+        }
+        Command::Serve => {
+            let token = config.api_token.as_ref().ok_or_else(|| {
+                CorvusError::Validation(
+                    "CORVUS_API_TOKEN is required to serve the HTTP API (try: openssl rand -hex 32)".into(),
+                )
+            })?;
+            let token = corvus_http::ApiToken::new(token.expose())?;
+            let (corvus, _) = corvus_core::Corvus::open(&config)?;
+            runtime()?
+                .block_on(corvus_http::serve(
+                    corvus,
+                    token,
+                    config.http_port,
+                    shutdown_signal(),
+                ))
+                .map_err(|e| CorvusError::Internal(format!("serve: {e}")))?;
+            Ok(Value::Null)
+        }
         Command::Admin {
             command: AdminCommand::Export { subdir, commit },
         } => json(
@@ -504,6 +532,29 @@ fn task_cmd(s: &Services, config: &Config, c: TaskCommand) -> Result<Value, Corv
             json(h.list_tasks(&api::ListTasks { status, agent, limit }))
         }
         TaskCommand::Get { task_id } => json(h.get_task(&task_id)),
+    }
+}
+
+fn runtime() -> Result<tokio::runtime::Runtime, CorvusError> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| CorvusError::Internal(format!("runtime: {e}")))
+}
+
+/// Resolves on SIGINT or SIGTERM.
+async fn shutdown_signal() {
+    let term = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        () = term => {}
     }
 }
 
