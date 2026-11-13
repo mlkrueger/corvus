@@ -71,7 +71,7 @@ All against real database files with `ManualClock`
 ## Exit criteria
 
 - [x] `make lint` and `make test` pass.
-- [ ] The race tests pass 50 consecutive runs locally (running; see *Unverified*).
+- [x] The race tests pass 50 consecutive runs locally.
 - [x] Every operation in the lock-protocol section of system/03 is a single `BEGIN IMMEDIATE` transaction in code.
 
 ## Open questions
@@ -90,9 +90,9 @@ All against real database files with `ManualClock`
   ceiling; longest wait for the lock ≈ 1.3 s under 16-way contention against a 5 s ceiling. The wait is SQLite's
   busy-handler backoff (sleep-and-retry, not a fair queue), not long transactions.
 - The race suite was not mutation-tested against a deliberately broken service.
-- **50 consecutive runs**: 24 debug-build runs passed back to back before the loop was switched to a faster
-  form (release build, the core and CLI race files in parallel, about 14 s per run); that 50-run loop was still
-  running at this commit.
+- **50 consecutive runs** were done on a release build with the core and CLI race files run in parallel: 50/50
+  passed (676 s, on a machine also running other builds). An earlier debug-build loop passed 24 back-to-back runs
+  before it was switched to that faster form.
 
 ## Notes from implementation
 
