@@ -227,3 +227,19 @@ fn admin_backup_is_consistent_while_another_process_writes() {
     assert_eq!(again.status.code(), Some(5));
     assert!(stderr(&again).contains("already exists"));
 }
+
+#[test]
+fn version_reports_commit_and_schema() {
+    let out = assert_cmd::Command::cargo_bin("corvus")
+        .unwrap()
+        .arg("--version")
+        .output()
+        .unwrap();
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(text.contains(env!("CARGO_PKG_VERSION")), "{text}");
+    assert!(text.contains("commit "), "{text}");
+    assert!(
+        text.contains(&format!("schema {}", migrator::SCHEMA_VERSION)),
+        "the version string's schema must match the migrator: {text}"
+    );
+}

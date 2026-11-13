@@ -50,3 +50,9 @@ missing_debug_implementations = "warn"
 dbg_macro = "deny"
 todo = "deny"
 unwrap_used = "warn"
+
+[profile.release]
+# Smaller, faster release binaries. `panic` stays "unwind": the hook and the housekeeping steps catch panics.
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,8 +1,28 @@
 # Development conveniences only; nothing here is needed to build or run Corvus.
-.PHONY: ui ui-deps types check-types test test-rust test-ui test-e2e lint lint-ui check-cli-node-free fmt check-purity check-rusqlite check-sql-clock check-seam run
+.PHONY: release bundle ui ui-deps types check-types test test-rust test-ui test-e2e lint lint-ui check-cli-node-free fmt check-purity check-rusqlite check-sql-clock check-seam run
 
 CARGO ?= cargo
 NON_CORE_CRATES := corvus-domain corvus-jira corvus-linear corvus-http corvus-mcp corvus-cli corvus-desktop
+
+HOST_TRIPLE := $(shell rustc -vV | sed -n 's/^host: //p')
+
+# The release corvus binary (no Node needed).
+release:
+	$(CARGO) build --release --locked -p corvus-cli
+
+# The desktop app bundle with the corvus binary inside it (needs Node, on the release machine only).
+# Signing: set CORVUS_SIGN_IDENTITY to a keychain identity name; nothing secret lives in the repo.
+bundle: release ui
+	mkdir -p crates/corvus-desktop/binaries
+	cp target/release/corvus crates/corvus-desktop/binaries/corvus-$(HOST_TRIPLE)
+	cd crates/corvus-desktop && ../../ui/node_modules/.bin/tauri build --no-sign \
+	  --config '{"bundle":{"active":true,"targets":["app"],"externalBin":["binaries/corvus"]},"build":{"beforeBuildCommand":""}}'
+	@if [ -n "$$CORVUS_SIGN_IDENTITY" ]; then \
+	  app=$$(ls -d target/release/bundle/macos/*.app); \
+	  codesign --force --options runtime --sign "$$CORVUS_SIGN_IDENTITY" "$$app/Contents/MacOS/corvus" && \
+	  codesign --force --options runtime --sign "$$CORVUS_SIGN_IDENTITY" "$$app" && \
+	  codesign --verify --deep --strict "$$app" && echo "signed: $$app"; \
+	else echo "unsigned bundle (set CORVUS_SIGN_IDENTITY to sign)"; fi
 
 # The dashboard (development needs Node; the corvus binary does not).
 ui-deps:

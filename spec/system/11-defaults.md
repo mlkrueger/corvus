@@ -62,6 +62,7 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 52 | HTTP shutdown grace | In-flight requests get 5 s after the signal | Long polls must not hold shutdown for 120 s |
 | 53 | Package manager for `ui/` | npm (with a committed `package-lock.json`) | Ships with Node; one less tool for contributors |
 | 54 | Generated TypeScript integers | `number` (ts-rs `TS_RS_LARGE_INT`) | `JSON.parse` yields numbers; ids and counts stay below 2^53 |
+| 55 | Linux `corvus` binary | Static musl (`<arch>-unknown-linux-musl`) | Runs on any distribution with no libraries installed; the desktop app is not affected |
 
 ## Deliberate departures from the brief's wording
 

@@ -14,10 +14,18 @@ use corvus_core::{Config, Services, SystemClock};
 use corvus_domain::CorvusError;
 use serde_json::{Value, json};
 
+/// `corvus --version`: package version, git commit and the schema version this binary migrates to.
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (commit ",
+    env!("CORVUS_GIT_COMMIT"),
+    ", schema 6)"
+);
+
 #[derive(Parser, Debug)]
 #[command(
     name = "corvus",
-    version,
+    version = VERSION,
     about = "Local-first coordination for AI coding agents"
 )]
 struct Cli {
