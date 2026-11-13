@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+.env
+*.db
+*.db-wal
+*.db-shm
+*.bak
+/ui/node_modules
+/ui/dist
+.DS_Store

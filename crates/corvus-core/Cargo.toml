@@ -1,0 +1,32 @@
+[package]
+name = "corvus-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+corvus-domain.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[features]
+# Test harness (temp databases, fixtures) for other crates' tests.
+test-support = ["dep:tempfile"]
+
+[dev-dependencies]
+# Enables `testing` for this package's own integration tests.
+corvus-core = { path = ".", features = ["test-support"] }
+proptest.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

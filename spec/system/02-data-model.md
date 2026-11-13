@@ -24,7 +24,8 @@ agents (
   name       TEXT PRIMARY KEY
              CHECK (length(name) BETWEEN 1 AND 64
                 AND name NOT GLOB '*[^A-Za-z0-9_.-]*'
-                AND substr(name, 1, 1) GLOB '[A-Za-z0-9]'),
+                AND substr(name, 1, 1) GLOB '[A-Za-z0-9]'
+                AND instr(name, char(0)) = 0),       -- length() and GLOB stop at a NUL
   created_at INTEGER NOT NULL
 )
 ```
@@ -70,7 +71,8 @@ tasks (
   cancelled_at    INTEGER
 )
 UNIQUE (creator, idempotency_key) WHERE idempotency_key IS NOT NULL
-INDEX (priority DESC, created_at, rowid) WHERE status = 'open'      -- the claim scan; rowid = insertion order
+INDEX (priority DESC, created_at) WHERE status = 'open'   -- the claim scan; SQLite appends rowid (= insertion
+                                                           -- order) to every index implicitly and cannot name it
 ```
 
 ### task_dependencies
