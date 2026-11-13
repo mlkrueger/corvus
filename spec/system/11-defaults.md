@@ -42,6 +42,12 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 32 | CLI install from the app | symlink into `~/.local/bin` | Never needs elevated rights |
 | 33 | Platforms | macOS and Linux only; nothing Windows-related | Owner direction |
 | 34 | macOS signing | release binary and app are signed with the owner's personal development certificate (testing only; no notarisation in v1); the identity is read from the keychain / environment at release time and never stored in the repo | Owner direction; secrets rule |
+| 35 | Auditing heartbeats | Heartbeats (and the implicit session touch) write no event | Liveness, not a state change; one row per call would drown the activity feed |
+| 36 | Idempotent registration without a name | The key is looked up among generated-name sessions | The agent name is not known before generation, so `(agent_name, key)` cannot match |
+| 37 | Release / complete of an expired but un-reaped lease | Allowed, like renew (#15) | The claim is still active in the store; whichever transaction runs first wins |
+| 38 | `end_session` on an ended / unknown session | Ended: no-op returning it. Unknown: `SessionNotActive` | Idempotent end; an unknown id is the same mistake as acting with one |
+| 39 | Cancel's `status` message to the claimant | No separate `message.posted` event; the `task.cancelled` event carries the message id | One event per mutation; the message is part of the cancel |
+| 40 | Who may cancel | Any agent (named in `by`); with a `session_id` it must belong to `by` | The brief sets no permission model; the operator and creators both need it |
 
 ## Deliberate departures from the brief's wording
 

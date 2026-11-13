@@ -13,6 +13,7 @@ use rusqlite::{OptionalExtension, params};
 use crate::clock::{Clock, ManualClock};
 use crate::db::{Database, MigrationReport, SqlResultExt, WriteTx};
 use crate::ids::{new_session_id, new_task_id};
+use crate::services::{Services, Settings};
 
 /// A migrated database in its own temp directory. The directory is removed on drop.
 #[derive(Debug)]
@@ -47,6 +48,15 @@ impl TestDb {
     /// Opens a second, independent handle (its own connections) on the same file.
     pub fn reopen(&self) -> Database {
         Database::open(&self.path, self.clock.as_ref()).expect("reopen").0
+    }
+
+    /// Services on a fresh handle to this database, sharing the test's manual clock.
+    pub fn services(&self) -> Services {
+        self.services_with(Settings::default())
+    }
+
+    pub fn services_with(&self, settings: Settings) -> Services {
+        Services::new(Arc::new(self.reopen()), self.clock.clone(), settings)
     }
 
     pub fn agent(&self, name: &str) -> AgentName {

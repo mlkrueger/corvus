@@ -13,7 +13,9 @@ transactions, the concurrency protocol, and the rules every service follows.
    `UPDATE sessions SET last_seen_at = :now WHERE id = :id AND ended_at IS NULL`. Zero rows →
    `SessionNotActive` ("session is not active; call register_session again"). This is the heartbeat (brief §4.1).
    A call with a session id is therefore always a mutation.
-4. Every mutation inserts an `events` row in the same transaction. Summaries never include message bodies.
+4. Every mutation inserts an `events` row in the same transaction. Summaries never include message bodies. The
+   one exception is the heartbeat (session touch), which is liveness, not a state change
+   ([defaults #35](11-defaults.md)).
 5. Agents named in a call are upserted (`ON CONFLICT DO NOTHING`) when they are the *actor*; an unknown agent
    named as a *target* (recipient, task recipient) is `NotFound` (brief §4.2).
 6. A write transaction starts by checking the schema version ([01](01-architecture.md#database-access)).

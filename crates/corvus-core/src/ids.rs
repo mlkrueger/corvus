@@ -4,6 +4,12 @@
 use corvus_domain::{ArtifactId, ClaimId, DecisionId, SessionId, TaskId, ThreadId};
 use uuid::Uuid;
 
+/// 64 random bits (from the OS generator, via a v4 UUID).
+pub fn random_u64() -> u64 {
+    let b = Uuid::new_v4().into_bytes();
+    u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[9], b[10]])
+}
+
 /// A new UUIDv7.
 pub fn new_uuid() -> Uuid {
     Uuid::now_v7()

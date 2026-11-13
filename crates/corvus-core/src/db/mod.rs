@@ -27,8 +27,9 @@ use std::fmt;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use corvus_domain::{CorvusError, Result};
 use rusqlite::{Connection, ErrorCode, OpenFlags, Transaction, TransactionBehavior};
@@ -230,12 +231,33 @@ enum Role {
     ReadOnly,
 }
 
+/// Write-transaction timings for this handle, so tests can assert the queue stays short (system/09).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WriteStats {
+    pub transactions: u64,
+    /// Longest wait to obtain the write lock (process mutex + `BEGIN IMMEDIATE`), microseconds.
+    pub max_wait_us: u64,
+    /// Longest `BEGIN IMMEDIATE` → `COMMIT`, microseconds.
+    pub max_hold_us: u64,
+}
+
+#[derive(Default)]
+struct WriteCounters {
+    transactions: AtomicU64,
+    max_wait_us: AtomicU64,
+    max_hold_us: AtomicU64,
+}
+
+/// A write transaction holding the lock longer than this is logged as a warning.
+const SLOW_WRITE: Duration = Duration::from_millis(250);
+
 /// A read/write database handle: one write connection behind a mutex and a small pool of readers.
 pub struct Database {
     path: PathBuf,
     expected_version: i64,
     writer: Mutex<Connection>,
     readers: Mutex<Vec<Connection>>,
+    stats: WriteCounters,
 }
 
 impl fmt::Debug for Database {
@@ -267,6 +289,7 @@ impl Database {
             expected_version: report.to_version,
             writer: Mutex::new(writer),
             readers: Mutex::new(Vec::new()),
+            stats: WriteCounters::default(),
         };
         Ok((db, report))
     }
@@ -280,10 +303,11 @@ impl Database {
     /// `f` may run more than once (busy retry), so it must not have side effects outside the transaction —
     /// which the rules forbid anyway (no IO inside a write transaction).
     pub fn write<T>(&self, mut f: impl FnMut(&WriteTx<'_>) -> Result<T>) -> Result<T> {
+        let asked = Instant::now();
         let mut conn = lock(&self.writer);
         let mut attempt = 0;
         loop {
-            match self.write_once(&mut conn, &mut f) {
+            match self.write_once(&mut conn, &mut f, asked) {
                 Err(CorvusError::Busy) if attempt < BUSY_RETRIES => {
                     attempt += 1;
                     tracing::warn!(attempt, "write transaction busy; retrying");
@@ -297,10 +321,17 @@ impl Database {
         &self,
         conn: &mut Connection,
         f: &mut impl FnMut(&WriteTx<'_>) -> Result<T>,
+        asked: Instant,
     ) -> Result<T> {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .db()?;
+        let began = Instant::now();
+        let _timer = HoldTimer {
+            stats: &self.stats,
+            began,
+            waited: began - asked,
+        };
         let version = user_version(&tx).db()?;
         if version != self.expected_version {
             return Err(CorvusError::Internal(format!(
@@ -313,6 +344,21 @@ impl Database {
         let out = f(&wtx)?;
         wtx.tx.commit().db()?;
         Ok(out)
+    }
+
+    /// Write-transaction timings since this handle opened (or since [`Database::reset_write_stats`]).
+    pub fn write_stats(&self) -> WriteStats {
+        WriteStats {
+            transactions: self.stats.transactions.load(Ordering::Relaxed),
+            max_wait_us: self.stats.max_wait_us.load(Ordering::Relaxed),
+            max_hold_us: self.stats.max_hold_us.load(Ordering::Relaxed),
+        }
+    }
+
+    pub fn reset_write_stats(&self) {
+        self.stats.transactions.store(0, Ordering::Relaxed);
+        self.stats.max_wait_us.store(0, Ordering::Relaxed);
+        self.stats.max_hold_us.store(0, Ordering::Relaxed);
     }
 
     /// Runs `f` in a deferred transaction on a read-only (`query_only`) connection.
@@ -338,6 +384,31 @@ impl Database {
         // source and writes the new file.
         conn.pragma_update(None, "query_only", false).db()?;
         vacuum_into(&conn, dest)
+    }
+}
+
+/// Records a write transaction's wait and hold time when it ends (commit, rollback or error).
+struct HoldTimer<'a> {
+    stats: &'a WriteCounters,
+    began: Instant,
+    waited: Duration,
+}
+
+impl Drop for HoldTimer<'_> {
+    fn drop(&mut self) {
+        let held = self.began.elapsed();
+        let us = |d: Duration| u64::try_from(d.as_micros()).unwrap_or(u64::MAX);
+        self.stats.transactions.fetch_add(1, Ordering::Relaxed);
+        self.stats
+            .max_wait_us
+            .fetch_max(us(self.waited), Ordering::Relaxed);
+        self.stats.max_hold_us.fetch_max(us(held), Ordering::Relaxed);
+        if held > SLOW_WRITE {
+            tracing::warn!(
+                duration_ms = u64::try_from(held.as_millis()).unwrap_or(u64::MAX),
+                "slow write transaction"
+            );
+        }
     }
 }
 

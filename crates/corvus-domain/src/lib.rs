@@ -5,6 +5,8 @@ pub mod enums;
 pub mod error;
 pub mod ids;
 pub mod name;
+pub mod names;
+pub mod presence;
 pub mod scope;
 pub mod text;
 
@@ -13,5 +15,7 @@ pub use enums::{ArtifactKind, EndReason, EventKind, MessageType, SessionEndReaso
 pub use error::{CorvusError, Result};
 pub use ids::{ArtifactId, ClaimId, DecisionId, DigestId, EventId, MessageId, SessionId, TaskId, ThreadId};
 pub use name::{AgentName, MAX_AGENT_NAME_LEN};
+pub use names::{generated_name, suffixed_name};
+pub use presence::{Presence, presence};
 pub use scope::{Scope, direct_thread_key, validate_thread_key};
 pub use text::{MAX_BODY_CHARS, validate_message_body, validate_summary, validate_task_body, validate_title};

@@ -87,6 +87,7 @@ string_enum!(/// Audit event kind (heartbeats are deliberately not audited).
     TaskReleased => "task.released",
     TaskCompleted => "task.completed",
     TaskCancelled => "task.cancelled",
+    TaskAppended => "task.appended",
     LeaseExpired => "lease.expired",
     ThreadCreated => "thread.created",
     MessagePosted => "message.posted",
@@ -155,7 +156,7 @@ mod tests {
             s(ArtifactKind::ALL),
             ["file", "branch", "worktree", "commit", "pr"]
         );
-        assert_eq!(EventKind::ALL.len(), 22);
+        assert_eq!(EventKind::ALL.len(), 23);
         assert!("Open".parse::<TaskStatus>().is_err());
     }
 }
