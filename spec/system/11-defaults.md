@@ -48,6 +48,12 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 38 | `end_session` on an ended / unknown session | Ended: no-op returning it. Unknown: `SessionNotActive` | Idempotent end; an unknown id is the same mistake as acting with one |
 | 39 | Cancel's `status` message to the claimant | No separate `message.posted` event; the `task.cancelled` event carries the message id | One event per mutation; the message is part of the cancel |
 | 40 | Who may cancel | Any agent (named in `by`); with a `session_id` it must belong to `by` | The brief sets no permission model; the operator and creators both need it |
+| 41 | `wait_for_inbox` default timeout | 60 s when omitted (clamped to 0–120) | Long enough to be useful, well inside HTTP and MCP client timeouts |
+| 42 | Default list sizes | inbox / messages 50, decisions 100, events 100; every limit capped at 500 | Bounded responses |
+| 43 | `create_thread` with a task that has a thread | Returns that thread | One thread per task; asking again is not an error |
+| 44 | `connect` transactions | Two: the registration, then one read for the bootstrap | Registration must commit before it can be read back |
+| 45 | `list_messages(unread_only)` | Messages someone in their audience has not acked | The operator view has no single "me" |
+| 46 | Overview sessions | Live sessions plus those ended in the last 24 h | Shows who just left without growing forever |
 
 ## Deliberate departures from the brief's wording
 

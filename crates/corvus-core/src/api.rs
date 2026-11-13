@@ -4,7 +4,7 @@
 //! Requests carry plain strings; services validate them into domain types and return `Validation` errors.
 //! Responses carry RFC 3339 timestamps.
 
-use corvus_domain::{ArtifactKind, EndReason, Presence, SessionEndReason, TaskStatus};
+use corvus_domain::{ArtifactKind, EndReason, MessageType, Presence, SessionEndReason, TaskStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -222,4 +222,354 @@ pub struct ListTasks {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExpireResult {
     pub expired: usize,
+}
+
+// ---------- threads and messages (plan 0003) ----------
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateThread {
+    pub creator: String,
+    pub title: String,
+    /// Link to a task (a task has one thread; asking again returns it).
+    #[serde(default)]
+    pub task_id: Option<String>,
+    /// Same key, same thread. Keys starting with `direct:` are reserved.
+    #[serde(default)]
+    pub key: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ThreadView {
+    pub id: String,
+    pub title: String,
+    pub task_id: Option<String>,
+    pub status: String,
+    pub creator: String,
+    pub key: Option<String>,
+    pub created_at: Timestamp,
+    pub artifacts: Vec<ArtifactView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PostMessage {
+    pub thread_id: String,
+    pub from: String,
+    pub body: String,
+    #[serde(rename = "type", default = "default_message_type")]
+    pub kind: MessageType,
+    /// Recipient agent; omit to broadcast to everyone.
+    #[serde(default)]
+    pub to: Option<String>,
+    #[serde(default)]
+    pub in_reply_to: Option<i64>,
+    #[serde(default)]
+    pub artifacts: Vec<ArtifactInput>,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+}
+
+fn default_message_type() -> MessageType {
+    MessageType::Note
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MessageView {
+    pub id: i64,
+    pub thread_id: String,
+    pub sender: String,
+    pub recipient: Option<String>,
+    #[serde(rename = "type")]
+    pub kind: MessageType,
+    pub in_reply_to: Option<i64>,
+    pub body: String,
+    pub session_id: Option<String>,
+    pub created_at: Timestamp,
+    pub artifacts: Vec<ArtifactView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SendDirect {
+    pub from: String,
+    pub to: String,
+    pub body: String,
+    #[serde(rename = "type", default = "default_message_type")]
+    pub kind: MessageType,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReadInbox {
+    pub agent: String,
+    #[serde(default)]
+    pub limit: Option<u32>,
+    /// Paging hint only; unread is a query, not a cursor.
+    #[serde(default)]
+    pub after_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AckMessage {
+    pub agent: String,
+    #[serde(default)]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AckResult {
+    pub message_id: i64,
+    pub newly_acked: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListMessages {
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub before_id: Option<i64>,
+    /// Sender or recipient.
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub thread: Option<String>,
+    /// Only messages someone in their audience has not read.
+    #[serde(default)]
+    pub unread_only: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MessageListItem {
+    #[serde(flatten)]
+    pub message: MessageView,
+    pub thread_title: String,
+    pub read_by: Vec<String>,
+    pub unread_by: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WaitForInbox {
+    pub agent: String,
+    /// Seconds, clamped to 0..=120. Default 60.
+    #[serde(default)]
+    pub timeout_seconds: Option<u64>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+// ---------- memory ----------
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WriteDigest {
+    pub author: String,
+    /// `global | task | thread | agent`.
+    pub scope: String,
+    /// Task id, thread id or agent name; omit for `global`.
+    #[serde(rename = "ref", default)]
+    pub reference: Option<String>,
+    pub summary: String,
+    #[serde(default)]
+    pub covers_through: Option<i64>,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DigestView {
+    pub id: i64,
+    pub scope: String,
+    #[serde(rename = "ref")]
+    pub reference: Option<String>,
+    pub scope_key: String,
+    pub summary: String,
+    pub author: String,
+    pub covers_through: Option<i64>,
+    pub created_at: Timestamp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordDecision {
+    pub decided_by: String,
+    pub title: String,
+    pub decision: String,
+    #[serde(default)]
+    pub rationale: Option<String>,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub thread_id: Option<String>,
+    #[serde(default)]
+    pub supersedes: Option<String>,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DecisionView {
+    pub id: String,
+    pub title: String,
+    pub decision: String,
+    pub rationale: String,
+    pub decided_by: String,
+    pub task_id: Option<String>,
+    pub thread_id: Option<String>,
+    pub supersedes: Option<String>,
+    pub superseded_by: Option<String>,
+    pub created_at: Timestamp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListDecisions {
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub thread_id: Option<String>,
+    #[serde(default)]
+    pub include_superseded: bool,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+// ---------- bootstrap, connect, stats, overview, health ----------
+
+/// Everything an agent needs on arrival (system/03 "Agent guidance").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Bootstrap {
+    pub agent: String,
+    /// Routed to this agent and open, or claimed by it.
+    pub routed_tasks: Vec<TaskView>,
+    /// Open tasks this agent could claim now.
+    pub claimable_tasks: Vec<TaskView>,
+    pub unread_messages: Vec<MessageView>,
+    /// Questions addressed to this agent (or broadcast) with no answer yet.
+    pub unresolved_questions: Vec<MessageView>,
+    pub digests: Vec<DigestView>,
+    pub decisions: Vec<DecisionView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConnectResult {
+    pub session: SessionView,
+    pub bootstrap: Bootstrap,
+    pub guidance: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Stats {
+    pub open_tasks: i64,
+    pub claimed_tasks: i64,
+    pub active_leases: i64,
+    pub expired_leases: i64,
+    pub unread_total: i64,
+    pub unread_by_agent: std::collections::BTreeMap<String, i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventView {
+    pub id: i64,
+    pub kind: String,
+    pub summary: String,
+    pub agent_name: Option<String>,
+    pub session_id: Option<String>,
+    pub task_id: Option<String>,
+    pub thread_id: Option<String>,
+    pub message_id: Option<i64>,
+    pub created_at: Timestamp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListEvents {
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub before_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OverviewSession {
+    #[serde(flatten)]
+    pub session: SessionView,
+    pub unread: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskColumns {
+    pub open: Vec<TaskView>,
+    pub claimed: Vec<TaskView>,
+    pub done: Vec<TaskView>,
+    pub cancelled: Vec<TaskView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Thresholds {
+    pub active_seconds: i64,
+    pub idle_seconds: i64,
+    pub lease_seconds: i64,
+    pub auto_end_seconds: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Overview {
+    pub generated_at: Timestamp,
+    pub operator_name: String,
+    pub thresholds: Thresholds,
+    /// Live sessions by presence (`active`, `idle`, `working`, `offline`).
+    pub presence_counts: std::collections::BTreeMap<String, i64>,
+    /// Live sessions plus sessions ended in the last day, newest first.
+    pub sessions: Vec<OverviewSession>,
+    pub tasks: TaskColumns,
+    pub stats: Stats,
+    pub blocked_by_cancelled: i64,
+    pub events: Vec<EventView>,
+    pub decisions: Vec<DecisionView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Health {
+    pub ok: bool,
+    pub schema_version: i64,
+}
+
+// ---------- export ----------
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExportRequest {
+    /// Directory inside the export repository. Default `coordination`.
+    #[serde(default)]
+    pub subdir: Option<String>,
+    /// Also `git add` + `git commit` exactly the exported paths.
+    #[serde(default)]
+    pub commit: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExportResult {
+    /// Repo-relative paths written.
+    pub paths: Vec<String>,
+    /// Repo-relative paths removed as stale.
+    pub removed: Vec<String>,
+    pub committed: bool,
 }

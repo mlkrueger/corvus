@@ -16,6 +16,7 @@ uuid.workspace = true
 sha2.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tokio.workspace = true
 tempfile = { workspace = true, optional = true }
 
 [features]
@@ -23,6 +24,7 @@ tempfile = { workspace = true, optional = true }
 test-support = ["dep:tempfile"]
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 # Enables `testing` for this package's own integration tests.
 corvus-core = { path = ".", features = ["test-support"] }
 proptest.workspace = true

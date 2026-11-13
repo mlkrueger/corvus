@@ -7,8 +7,12 @@
 pub mod agents;
 pub mod artifacts;
 pub mod claims;
+pub mod decisions;
+pub mod digests;
 pub mod events;
+pub mod hints;
 pub mod messages;
+pub mod receipts;
 pub mod sessions;
 pub mod tasks;
 pub mod threads;

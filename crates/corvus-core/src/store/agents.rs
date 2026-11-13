@@ -18,6 +18,13 @@ pub fn ensure(tx: &WriteTx<'_>, name: &AgentName, now: i64) -> Result<bool> {
     Ok(created.is_some())
 }
 
+/// Every agent name, alphabetically.
+pub fn all(r: &impl Reader) -> Result<Vec<String>> {
+    let mut st = r.sql().prepare("SELECT name FROM agents ORDER BY name").db()?;
+    let rows = st.query_map([], |r| r.get(0)).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}
+
 pub fn exists(r: &impl Reader, name: &AgentName) -> Result<bool> {
     r.sql()
         .query_row(

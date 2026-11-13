@@ -3,6 +3,7 @@
 pub mod artifact;
 pub mod enums;
 pub mod error;
+pub mod guidance;
 pub mod ids;
 pub mod name;
 pub mod names;
@@ -13,6 +14,7 @@ pub mod text;
 pub use artifact::{ArtifactRef, validate_artifact_path, validate_commit_hash};
 pub use enums::{ArtifactKind, EndReason, EventKind, MessageType, SessionEndReason, TaskStatus};
 pub use error::{CorvusError, Result};
+pub use guidance::GUIDANCE;
 pub use ids::{ArtifactId, ClaimId, DecisionId, DigestId, EventId, MessageId, SessionId, TaskId, ThreadId};
 pub use name::{AgentName, MAX_AGENT_NAME_LEN};
 pub use names::{generated_name, suffixed_name};

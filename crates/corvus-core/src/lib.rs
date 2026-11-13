@@ -6,6 +6,7 @@ pub mod clock;
 pub mod config;
 pub mod db;
 pub mod envfile;
+pub mod hermod;
 pub mod ids;
 pub mod logging;
 pub mod services;

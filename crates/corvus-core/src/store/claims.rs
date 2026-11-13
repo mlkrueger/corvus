@@ -125,3 +125,15 @@ pub fn expired(tx: &WriteTx<'_>, now: i64) -> Result<Vec<ClaimRow>> {
     let rows = st.query_map([now], row).db()?;
     rows.collect::<rusqlite::Result<_>>().db()
 }
+
+/// (active leases, active-but-expired leases) at `now`.
+pub fn lease_counts(r: &impl Reader, now: i64) -> Result<(i64, i64)> {
+    r.sql()
+        .query_row(
+            "SELECT count(*) FILTER (WHERE lease_expires_at > ?1), count(*) FILTER (WHERE lease_expires_at <= ?1)
+               FROM claims WHERE released_at IS NULL",
+            [now],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .db()
+}

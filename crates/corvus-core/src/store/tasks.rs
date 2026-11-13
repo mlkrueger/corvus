@@ -246,3 +246,84 @@ pub fn list(
         .db()?;
     rows.collect::<rusqlite::Result<_>>().db()
 }
+
+/// Tasks routed to `agent` that are open, plus tasks it currently holds; newest first.
+pub fn routed_to(r: &impl Reader, agent: &str, limit: u32) -> Result<Vec<TaskRow>> {
+    let mut st = r
+        .sql()
+        .prepare(&format!(
+            "{SELECT}
+              WHERE (t.recipient_agent = ?1 AND t.status = 'open')
+                 OR EXISTS (SELECT 1 FROM claims c WHERE c.task_id = t.id AND c.released_at IS NULL
+                             AND c.agent_name = ?1)
+              ORDER BY t.priority DESC, t.created_at, t.rowid
+              LIMIT ?2"
+        ))
+        .db()?;
+    let rows = st.query_map(params![agent, limit], row).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}
+
+/// Open, unblocked tasks `agent` could claim (any pool), in claim order.
+pub fn claimable_for(r: &impl Reader, agent: &str, limit: u32) -> Result<Vec<TaskRow>> {
+    let mut st = r
+        .sql()
+        .prepare(&format!(
+            "{SELECT}
+              WHERE t.status = 'open' AND (t.recipient_agent IS NULL OR t.recipient_agent = ?1)
+                AND NOT EXISTS (SELECT 1 FROM task_dependencies d JOIN tasks dt ON dt.id = d.depends_on_id
+                                 WHERE d.task_id = t.id AND dt.status <> 'done')
+              ORDER BY t.priority DESC, t.created_at, t.rowid
+              LIMIT ?2"
+        ))
+        .db()?;
+    let rows = st.query_map(params![agent, limit], row).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}
+
+/// Counts by status.
+pub fn status_counts(r: &impl Reader) -> Result<Vec<(String, i64)>> {
+    let mut st = r
+        .sql()
+        .prepare("SELECT status, count(*) FROM tasks GROUP BY status ORDER BY status")
+        .db()?;
+    let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}
+
+/// Recent tasks with `status`, most recently updated first.
+pub fn recent_with_status(r: &impl Reader, status: TaskStatus, limit: u32) -> Result<Vec<TaskRow>> {
+    let mut st = r
+        .sql()
+        .prepare(&format!(
+            "{SELECT} WHERE t.status = ?1 ORDER BY t.updated_at DESC, t.rowid DESC LIMIT ?2"
+        ))
+        .db()?;
+    let rows = st.query_map(params![status.as_str(), limit], row).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}
+
+/// Open tasks with at least one cancelled dependency.
+pub fn blocked_by_cancelled_count(r: &impl Reader) -> Result<i64> {
+    r.sql()
+        .query_row(
+            "SELECT count(*) FROM tasks t WHERE t.status = 'open' AND EXISTS (
+                 SELECT 1 FROM task_dependencies d JOIN tasks dt ON dt.id = d.depends_on_id
+                  WHERE d.task_id = t.id AND dt.status = 'cancelled')",
+            [],
+            |r| r.get(0),
+        )
+        .db()
+}
+
+/// Open tasks (open and claimed) for the export, in claim order.
+pub fn live(r: &impl Reader) -> Result<Vec<TaskRow>> {
+    let mut st = r
+        .sql()
+        .prepare(&format!(
+            "{SELECT} WHERE t.status IN ('open', 'claimed') ORDER BY t.priority DESC, t.created_at, t.rowid"
+        ))
+        .db()?;
+    let rows = st.query_map([], row).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}

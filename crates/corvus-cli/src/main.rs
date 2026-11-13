@@ -10,7 +10,7 @@ use std::sync::Arc;
 use clap::{Args, Parser, Subcommand};
 use corvus_core::api;
 use corvus_core::db::{Database, migrator};
-use corvus_core::{Config, Services, Settings, SystemClock};
+use corvus_core::{Config, Services, SystemClock};
 use corvus_domain::CorvusError;
 use serde_json::{Value, json};
 
@@ -41,6 +41,46 @@ enum Command {
         #[command(subcommand)]
         command: TaskCommand,
     },
+    /// Register a session and print it with the bootstrap context and guidance.
+    Connect {
+        #[arg(long)]
+        agent: Option<String>,
+        #[arg(long, default_value = "cli")]
+        client: String,
+    },
+    /// Messages.
+    Msg {
+        #[command(subcommand)]
+        command: MsgCommand,
+    },
+    /// Send a direct message as the operator (CORVUS_OPERATOR_NAME) unless --from is given.
+    Tell {
+        agent: String,
+        message: String,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long = "type", default_value = "note")]
+        kind: String,
+    },
+    /// An agent's inbox.
+    Inbox {
+        #[command(subcommand)]
+        command: InboxCommand,
+    },
+    /// Digests.
+    Digest {
+        #[command(subcommand)]
+        command: DigestCommand,
+    },
+    /// Decisions.
+    Decision {
+        #[command(subcommand)]
+        command: DecisionCommand,
+    },
+    /// The bootstrap context for an agent.
+    Bootstrap { agent: String },
+    /// Queue and inbox counts.
+    Stats,
     /// Administrative commands.
     Admin {
         #[command(subcommand)]
@@ -160,7 +200,108 @@ enum TaskCommand {
 }
 
 #[derive(Subcommand, Debug)]
+enum MsgCommand {
+    /// Post a message into a thread (broadcast unless --to is given).
+    Post {
+        #[arg(long)]
+        thread: String,
+        body: String,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
+        #[arg(long = "type", default_value = "note")]
+        kind: String,
+        #[arg(long)]
+        in_reply_to: Option<i64>,
+        #[arg(long)]
+        idempotency_key: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum InboxCommand {
+    /// Unread messages, oldest first. Never acks.
+    Read {
+        agent: String,
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        after_id: Option<i64>,
+    },
+    /// Acknowledge a message.
+    Ack {
+        message_id: i64,
+        #[arg(long)]
+        agent: String,
+    },
+    /// Block until unread messages exist (or the timeout, at most 120 s), then print them.
+    Wait {
+        agent: String,
+        #[arg(long, default_value_t = 60)]
+        timeout: u64,
+        #[arg(long = "session")]
+        session_id: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum DigestCommand {
+    /// Write a digest: --scope global|task|thread|agent [--ref ID-or-NAME].
+    Write {
+        #[arg(long)]
+        scope: String,
+        #[arg(long = "ref")]
+        reference: Option<String>,
+        summary: String,
+        #[arg(long)]
+        author: Option<String>,
+        #[arg(long)]
+        covers_through: Option<i64>,
+    },
+    /// The latest digest of every scope.
+    List,
+}
+
+#[derive(Subcommand, Debug)]
+enum DecisionCommand {
+    /// Record a decision.
+    Record {
+        #[arg(long)]
+        title: String,
+        decision: String,
+        #[arg(long)]
+        rationale: Option<String>,
+        #[arg(long)]
+        by: Option<String>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        thread: Option<String>,
+        #[arg(long)]
+        supersedes: Option<String>,
+    },
+    /// Current decisions, newest first.
+    List {
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        thread: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 enum AdminCommand {
+    /// Write the coordination snapshot into CORVUS_EXPORT_REPO.
+    Export {
+        #[arg(long)]
+        subdir: Option<String>,
+        /// Also commit exactly the exported paths.
+        #[arg(long)]
+        commit: bool,
+    },
     /// End every expired lease now.
     ExpireLeases,
     /// End every session silent longer than CORVUS_AUTO_END_SECONDS now.
@@ -211,6 +352,39 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
             }))
         }
         Command::Session { command } => session_cmd(&services(&config)?, command),
+        Command::Connect { agent, client } => {
+            json(services(&config)?.muninn().connect(&api::RegisterSession {
+                agent_name: agent,
+                client_name: client,
+                ..Default::default()
+            }))
+        }
+        Command::Msg { command } => msg_cmd(&services(&config)?, &config, command),
+        Command::Tell {
+            agent,
+            message,
+            from,
+            kind,
+        } => json(services(&config)?.muninn().send_direct(&api::SendDirect {
+            from: from.unwrap_or_else(|| config.operator_name.to_string()),
+            to: agent,
+            body: message,
+            kind: kind.parse()?,
+            idempotency_key: None,
+            session_id: None,
+        })),
+        Command::Inbox { command } => inbox_cmd(services(&config)?, &config, command),
+        Command::Digest { command } => digest_cmd(&services(&config)?, &config, command),
+        Command::Decision { command } => decision_cmd(&services(&config)?, &config, command),
+        Command::Bootstrap { agent } => json(services(&config)?.muninn().bootstrap(&agent)),
+        Command::Stats => json(services(&config)?.overview().stats()),
+        Command::Admin {
+            command: AdminCommand::Export { subdir, commit },
+        } => json(
+            services(&config)?
+                .export()
+                .export_state_to_git(&api::ExportRequest { subdir, commit }),
+        ),
         Command::Task { command } => task_cmd(&services(&config)?, &config, command),
         Command::Admin {
             command: AdminCommand::ExpireLeases,
@@ -231,11 +405,7 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
 
 fn services(config: &Config) -> Result<Services, CorvusError> {
     let (db, _) = Database::open(&config.database_path, &SystemClock)?;
-    Ok(Services::new(
-        Arc::new(db),
-        Arc::new(SystemClock),
-        Settings::from_config(config),
-    ))
+    Ok(Services::from_config(Arc::new(db), Arc::new(SystemClock), config))
 }
 
 fn json<T: serde::Serialize>(r: Result<T, CorvusError>) -> Result<Value, CorvusError> {
@@ -334,6 +504,121 @@ fn task_cmd(s: &Services, config: &Config, c: TaskCommand) -> Result<Value, Corv
             json(h.list_tasks(&api::ListTasks { status, agent, limit }))
         }
         TaskCommand::Get { task_id } => json(h.get_task(&task_id)),
+    }
+}
+
+fn msg_cmd(s: &Services, config: &Config, c: MsgCommand) -> Result<Value, CorvusError> {
+    match c {
+        MsgCommand::Post {
+            thread,
+            body,
+            from,
+            to,
+            kind,
+            in_reply_to,
+            idempotency_key,
+        } => json(s.muninn().post_message(&api::PostMessage {
+            thread_id: thread,
+            from: from.unwrap_or_else(|| config.operator_name.to_string()),
+            body,
+            kind: kind.parse()?,
+            to,
+            in_reply_to,
+            artifacts: Vec::new(),
+            idempotency_key,
+            session_id: None,
+        })),
+    }
+}
+
+fn inbox_cmd(s: Services, config: &Config, c: InboxCommand) -> Result<Value, CorvusError> {
+    match c {
+        InboxCommand::Read {
+            agent,
+            limit,
+            after_id,
+        } => json(s.muninn().read_inbox(&api::ReadInbox {
+            agent,
+            limit,
+            after_id,
+        })),
+        InboxCommand::Ack { message_id, agent } => json(s.muninn().ack_message(
+            message_id,
+            &api::AckMessage {
+                agent,
+                session_id: None,
+            },
+        )),
+        InboxCommand::Wait {
+            agent,
+            timeout,
+            session_id,
+        } => {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_time()
+                .build()
+                .map_err(|e| CorvusError::Internal(format!("runtime: {e}")))?;
+            let hermod = corvus_core::hermod::Hermod::new(&config.database_path);
+            let req = api::WaitForInbox {
+                agent,
+                timeout_seconds: Some(timeout),
+                session_id,
+                limit: None,
+            };
+            json(rt.block_on(corvus_core::hermod::wait_for_inbox(&s, &hermod, &req)))
+        }
+    }
+}
+
+fn digest_cmd(s: &Services, config: &Config, c: DigestCommand) -> Result<Value, CorvusError> {
+    match c {
+        DigestCommand::Write {
+            scope,
+            reference,
+            summary,
+            author,
+            covers_through,
+        } => json(s.muninn().write_digest(&api::WriteDigest {
+            author: author.unwrap_or_else(|| config.operator_name.to_string()),
+            scope,
+            reference,
+            summary,
+            covers_through,
+            idempotency_key: None,
+            session_id: None,
+        })),
+        DigestCommand::List => json(s.muninn().list_latest_digests()),
+    }
+}
+
+fn decision_cmd(s: &Services, config: &Config, c: DecisionCommand) -> Result<Value, CorvusError> {
+    match c {
+        DecisionCommand::Record {
+            title,
+            decision,
+            rationale,
+            by,
+            task,
+            thread,
+            supersedes,
+        } => json(s.muninn().record_decision(&api::RecordDecision {
+            decided_by: by.unwrap_or_else(|| config.operator_name.to_string()),
+            title,
+            decision,
+            rationale,
+            task_id: task,
+            thread_id: thread,
+            supersedes,
+            idempotency_key: None,
+            session_id: None,
+        })),
+        DecisionCommand::List { task, thread, all } => json(s.muninn().list_decisions(&api::ListDecisions {
+            task_id: task,
+            thread_id: thread,
+            include_superseded: all,
+            limit: None,
+        })),
     }
 }
 

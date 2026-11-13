@@ -14,7 +14,7 @@ A plan says what gets built, in what order, and how it is verified. Lasting desi
 | [0000](0000-roadmap.md) | Roadmap: build order and milestones | Ready | — |
 | [0001](0001-foundation.md) | Foundation: workspace, config, embedded database, migrations | Done | — |
 | [0002](0002-huginn-work-queue.md) | Huginn: sessions, tasks, claims, leases, cancellation | Done | 0001 |
-| [0003](0003-muninn-hermod.md) | Muninn + Hermod: messaging, memory, export, wake-ups | Ready | 0002 |
+| [0003](0003-muninn-hermod.md) | Muninn + Hermod: messaging, memory, export, wake-ups | Done | 0002 |
 | [0004](0004-transports.md) | Transports: CLI, MCP server, HTTP API | Ready | 0003 |
 | [0005](0005-housekeeping.md) | Housekeeping loop and background leader | Ready | 0004 |
 | [0006](0006-dashboard-and-desktop.md) | Dashboard (Svelte) and self-contained desktop app (Tauri 2) | Ready | 0004, 0005 |

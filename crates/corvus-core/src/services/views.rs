@@ -69,19 +69,7 @@ pub(crate) fn task(r: &impl Reader, row: tasks::TaskRow) -> Result<TaskView> {
         claimed_at: ts(c.claimed_at),
         lease_expires_at: ts(c.lease_expires_at),
     });
-    let artifacts = artifacts::list(r, Owner::Task(&row.id))?
-        .into_iter()
-        .map(|a| {
-            Ok(ArtifactView {
-                kind: parse(&a.kind)?,
-                id: a.id,
-                path: a.path,
-                commit: a.commit_hash,
-                description: a.description,
-                created_at: ts(a.created_at),
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let artifacts = artifact_views(r, Owner::Task(&row.id))?;
     Ok(TaskView {
         status: parse(&row.status)?,
         id: row.id,
@@ -113,5 +101,99 @@ pub(crate) fn task_by_id(r: &impl Reader, id: &str) -> Result<TaskView> {
         None => Err(corvus_domain::CorvusError::NotFound(format!(
             "task {id} not found"
         ))),
+    }
+}
+
+pub(crate) fn thread_by_id(r: &impl Reader, id: &str) -> Result<crate::api::ThreadView> {
+    let Some(t) = threads::get(r, id)? else {
+        return Err(corvus_domain::CorvusError::NotFound(format!(
+            "thread {id} not found"
+        )));
+    };
+    Ok(crate::api::ThreadView {
+        artifacts: artifact_views(r, Owner::Thread(&t.id))?,
+        id: t.id,
+        title: t.title,
+        task_id: t.task_id,
+        status: t.status,
+        creator: t.creator,
+        key: t.key,
+        created_at: ts(t.created_at),
+    })
+}
+
+fn artifact_views(r: &impl Reader, owner: Owner<'_>) -> Result<Vec<ArtifactView>> {
+    artifacts::list(r, owner)?
+        .into_iter()
+        .map(|a| {
+            Ok(ArtifactView {
+                kind: parse(&a.kind)?,
+                id: a.id,
+                path: a.path,
+                commit: a.commit_hash,
+                description: a.description,
+                created_at: ts(a.created_at),
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn message(
+    r: &impl Reader,
+    m: crate::store::messages::MessageRow,
+) -> Result<crate::api::MessageView> {
+    Ok(crate::api::MessageView {
+        artifacts: artifact_views(r, Owner::Message(m.id))?,
+        kind: parse(&m.kind)?,
+        id: m.id,
+        thread_id: m.thread_id,
+        sender: m.sender,
+        recipient: m.recipient,
+        in_reply_to: m.in_reply_to,
+        body: m.body,
+        session_id: m.session_id,
+        created_at: ts(m.created_at),
+    })
+}
+
+pub(crate) fn digest(d: crate::store::digests::DigestRow) -> crate::api::DigestView {
+    crate::api::DigestView {
+        id: d.id,
+        scope: d.scope,
+        reference: d.reference,
+        scope_key: d.scope_key,
+        summary: d.summary,
+        author: d.author,
+        covers_through: d.covers_through,
+        created_at: ts(d.created_at),
+    }
+}
+
+pub(crate) fn decision(d: crate::store::decisions::DecisionRow) -> crate::api::DecisionView {
+    crate::api::DecisionView {
+        id: d.id,
+        title: d.title,
+        decision: d.decision,
+        rationale: d.rationale,
+        decided_by: d.decided_by,
+        task_id: d.task_id,
+        thread_id: d.thread_id,
+        supersedes: d.supersedes,
+        superseded_by: d.superseded_by,
+        created_at: ts(d.created_at),
+    }
+}
+
+pub(crate) fn event(e: crate::store::events::EventRow) -> crate::api::EventView {
+    crate::api::EventView {
+        id: e.id,
+        kind: e.kind,
+        summary: e.summary,
+        agent_name: e.agent_name,
+        session_id: e.session_id,
+        task_id: e.task_id,
+        thread_id: e.thread_id,
+        message_id: e.message_id,
+        created_at: ts(e.created_at),
     }
 }

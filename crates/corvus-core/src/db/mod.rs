@@ -387,6 +387,34 @@ impl Database {
     }
 }
 
+/// Hermod's dedicated read connection: `PRAGMA data_version` (which changes when any *other* connection
+/// commits) plus read transactions for the hint cursor.
+pub struct HintReader {
+    conn: Connection,
+}
+
+impl fmt::Debug for HintReader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("HintReader")
+    }
+}
+
+impl HintReader {
+    pub fn open(path: &Path) -> Result<Self> {
+        Ok(Self {
+            conn: open_conn(path, Role::Reader, BUSY_TIMEOUT_MS).map_err(CorvusError::from)?,
+        })
+    }
+
+    pub fn data_version(&self) -> Result<i64> {
+        self.conn.query_row("PRAGMA data_version", [], |r| r.get(0)).db()
+    }
+
+    pub fn read<T>(&mut self, f: impl FnOnce(&ReadTx<'_>) -> Result<T>) -> Result<T> {
+        read_on(&mut self.conn, f)
+    }
+}
+
 /// Records a write transaction's wait and hold time when it ends (commit, rollback or error).
 struct HoldTimer<'a> {
     stats: &'a WriteCounters,

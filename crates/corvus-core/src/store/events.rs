@@ -36,3 +36,43 @@ pub fn clip(s: &str) -> String {
         out
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EventRow {
+    pub id: i64,
+    pub kind: String,
+    pub summary: String,
+    pub agent_name: Option<String>,
+    pub session_id: Option<String>,
+    pub task_id: Option<String>,
+    pub thread_id: Option<String>,
+    pub message_id: Option<i64>,
+    pub created_at: i64,
+}
+
+/// Newest first, `id < before_id`.
+pub fn list(r: &impl crate::db::Reader, before_id: Option<i64>, limit: u32) -> Result<Vec<EventRow>> {
+    let mut st = r
+        .sql()
+        .prepare(
+            "SELECT id, kind, summary, agent_name, session_id, task_id, thread_id, message_id, created_at
+               FROM events WHERE (?1 IS NULL OR id < ?1) ORDER BY id DESC LIMIT ?2",
+        )
+        .db()?;
+    let rows = st
+        .query_map(params![before_id, limit], |r| {
+            Ok(EventRow {
+                id: r.get(0)?,
+                kind: r.get(1)?,
+                summary: r.get(2)?,
+                agent_name: r.get(3)?,
+                session_id: r.get(4)?,
+                task_id: r.get(5)?,
+                thread_id: r.get(6)?,
+                message_id: r.get(7)?,
+                created_at: r.get(8)?,
+            })
+        })
+        .db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}

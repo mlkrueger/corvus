@@ -1,6 +1,6 @@
 # Plan 0003 — Muninn + Hermod: messaging, memory, export, wake-ups
 
-- **Status:** Ready
+- **Status:** Done
 - **Depends on:** [0002](0002-huginn-work-queue.md)
 - **Spec:** [system/03](../system/03-services.md#muninn-messaging) · brief §4.3, §4.4, §4.5, §4.6 (P3, P4, P5)
 
@@ -18,51 +18,51 @@ processes, digests, decisions, the bootstrap context, the guidance text, stats/o
 
 ## Work breakdown
 
-- [ ] 1. Threads: `create_thread` (keyed idempotency, reserved `direct:` prefix).
-- [ ] 2. `post_message` (validation, reply-in-thread, artifacts, idempotency, session ownership, event).
-- [ ] 3. `send_direct` (pair key), `read_inbox`, `ack_message`, `list_messages` with read/unread-by.
-- [ ] 4. Hermod: per-process `data_version` watcher on a dedicated read connection (active only while there
+- [x] 1. Threads: `create_thread` (keyed idempotency, reserved `direct:` prefix).
+- [x] 2. `post_message` (validation, reply-in-thread, artifacts, idempotency, session ownership, event).
+- [x] 3. `send_direct` (pair key), `read_inbox`, `ack_message`, `list_messages` with read/unread-by.
+- [x] 4. Hermod: per-process `data_version` watcher on a dedicated read connection (active only while there
       are subscribers), hint-cursor reads, topic fan-out, wake-all when the cursor was pruned past, subscription API.
-- [ ] 5. `wait_for_inbox`: subscribe → heartbeat → read → wait/re-check loop; timeout clamp.
-- [ ] 6. Digests and decisions: write, latest, list, supersession.
-- [ ] 7. `GUIDANCE` constant; `bootstrap`; `connect`.
-- [ ] 8. `stats`, `overview`, `health`.
-- [ ] 9. `export_state_to_git`: snapshot read in one read transaction, then (outside any transaction) atomic
+- [x] 5. `wait_for_inbox`: subscribe → heartbeat → read → wait/re-check loop; timeout clamp.
+- [x] 6. Digests and decisions: write, latest, list, supersession.
+- [x] 7. `GUIDANCE` constant; `bootstrap`; `connect`.
+- [x] 8. `stats`, `overview`, `health`.
+- [x] 9. `export_state_to_git`: snapshot read in one read transaction, then (outside any transaction) atomic
       file writes, stale-file removal, optional commit.
 
 ## Verification
 
-- [ ] Unread semantics: addressed, broadcast, own messages excluded, acked excluded; `after_id` pages but an
+- [x] Unread semantics: addressed, broadcast, own messages excluded, acked excluded; `after_id` pages but an
       older unread message that commits later is still returned by a plain read.
-- [ ] Ack: idempotent, returns `newly_acked`; own message → conflict; not addressed → conflict.
-- [ ] Unresolved question: resolved only by an `answer` with `in_reply_to`; a `note` reply does not resolve.
-- [ ] Reply to a message in another thread → validation error (and the store rejects a forced insert).
-- [ ] Direct threads: A→B and B→A share one thread; A→C is a different one; concurrent first messages create one thread.
-- [ ] `list_messages`: newest first, paging, filters, `read_by`/`unread_by`; calling it never creates a receipt.
-- [ ] Idempotency replays for thread, message, digest, decision — sequential and concurrent.
-- [ ] Append-only: service has no update/delete path; direct SQL attempts fail (re-asserted here for digests/messages).
-- [ ] **Wake-up (same process):** waiter blocks; a message posted on another connection wakes it within the
+- [x] Ack: idempotent, returns `newly_acked`; own message → conflict; not addressed → conflict.
+- [x] Unresolved question: resolved only by an `answer` with `in_reply_to`; a `note` reply does not resolve.
+- [x] Reply to a message in another thread → validation error (and the store rejects a forced insert).
+- [x] Direct threads: A→B and B→A share one thread; A→C is a different one; concurrent first messages create one thread.
+- [x] `list_messages`: newest first, paging, filters, `read_by`/`unread_by`; calling it never creates a receipt.
+- [x] Idempotency replays for thread, message, digest, decision — sequential and concurrent.
+- [x] Append-only: service has no update/delete path; direct SQL attempts fail (re-asserted here for digests/messages).
+- [x] **Wake-up (same process):** waiter blocks; a message posted on another connection wakes it within the
       detection interval.
-- [ ] **Wake-up (cross process):** a waiter in one `corvus` process is woken by a message posted by another
+- [x] **Wake-up (cross process):** a waiter in one `corvus` process is woken by a message posted by another
       `corvus` process on the same database file.
-- [ ] **Targeting:** a hint for another agent does not cause this waiter to re-read; `inbox:*` does.
-- [ ] **Timeout:** no message → returns empty at the deadline (paused tokio time); timeout > 120 is clamped.
-- [ ] **Subscribe-before-read:** a message committed between subscribe and read is returned immediately.
-- [ ] **Lost hint:** with hint detection disabled, and separately with the `hints` table emptied under the
+- [x] **Targeting:** a hint for another agent does not cause this waiter to re-read; `inbox:*` does.
+- [x] **Timeout:** no message → returns empty at the deadline (paused tokio time); timeout > 120 is clamped.
+- [x] **Subscribe-before-read:** a message committed between subscribe and read is returned immediately.
+- [x] **Lost hint:** with hint detection disabled, and separately with the `hints` table emptied under the
       waiter's cursor, a waiter still returns via the periodic re-check / wake-all.
-- [ ] No waiter → no polling (the watcher is idle when there are no subscribers).
-- [ ] Coalesced / duplicate hints cause no duplicate results. Waiting bumps `last_seen_at`.
-- [ ] Digests: latest per scope key; unknown ref → not found. Decisions: superseded hidden by default.
-- [ ] Bootstrap contains exactly the six parts; `connect` = session + bootstrap + guidance.
-- [ ] Export: all files present with expected content; paths returned are repo-relative; absolute or `..`
+- [x] No waiter → no polling (the watcher is idle when there are no subscribers).
+- [x] Coalesced / duplicate hints cause no duplicate results. Waiting bumps `last_seen_at`.
+- [x] Digests: latest per scope key; unknown ref → not found. Decisions: superseded hidden by default.
+- [x] Bootstrap contains exactly the six parts; `connect` = session + bootstrap + guidance.
+- [x] Export: all files present with expected content; paths returned are repo-relative; absolute or `..`
       subdir rejected; no repo configured → validation error; `commit=true` commits only exported paths in a
       temp git repo with unrelated dirty files left untouched; stale `inbox/` file removed.
-- [ ] Stats and overview numbers match a seeded scenario, including `blocked_by_cancelled` and presence counts.
+- [x] Stats and overview numbers match a seeded scenario, including `blocked_by_cancelled` and presence counts.
 
 ## Exit criteria
 
-- [ ] `make lint` and `make test` pass.
-- [ ] Two `corvus`-linked test processes exchange a message with a blocking wait end to end.
+- [x] `make lint` and `make test` pass.
+- [x] Two `corvus`-linked test processes exchange a message with a blocking wait end to end.
 
 ## Open questions
 
@@ -70,7 +70,23 @@ processes, digests, decisions, the bootstrap context, the guidance text, stats/o
 
 ## Unverified / deferred
 
-—
+- **Timeout test uses real time** (a 1 s wait measured against the wall clock), not paused tokio time: the
+  wait's reads run on the blocking pool, and real time with short intervals kept the test honest about that.
+  The 120 s clamp is tested through `clamp_timeout`.
+- **Subscribe-before-read** is tested as "a message already committed when the wait starts is returned at
+  once"; the exact window between subscribe and read is too narrow to target from a test without a hook.
+- **Hint pruning on open** (D0016 says "by housekeeping and on open"): the prune function exists and is tested;
+  calling it is left to housekeeping (plan 0005).
+- The README copy of `GUIDANCE` and its drift test arrive with the README (plan 0010).
+- `export_state_to_git(commit = true)` needs `git` on the PATH; plain export does not.
+
+## Notes from implementation
+
+- The CLI gained `connect`, `msg post`, `tell`, `inbox read|ack|wait`, `digest write|list`,
+  `decision record|list`, `bootstrap`, `stats` and `admin export` (plan 0004 finishes the CLI).
+- Hermod detects pruned hints by an id gap right after its cursor (`AUTOINCREMENT` ids are never reused and
+  writers are serial), which also covers a cursor of 0.
+- Choices where the spec was silent: [system/11](../system/11-defaults.md) rows 41–46.
 
 ## Decisions
 
