@@ -51,14 +51,21 @@ pub struct PassReport {
 
 impl PassReport {
     pub fn count(&self, step: &str) -> Option<usize> {
-        self.steps.iter().find(|s| s.step == step).and_then(|s| match s.outcome {
-            StepOutcome::Ok { count } => Some(count),
-            _ => None,
-        })
+        self.steps
+            .iter()
+            .find(|s| s.step == step)
+            .and_then(|s| match s.outcome {
+                StepOutcome::Ok { count } => Some(count),
+                _ => None,
+            })
     }
 
     pub fn failed(&self) -> Vec<&'static str> {
-        self.steps.iter().filter(|s| matches!(s.outcome, StepOutcome::Failed { .. })).map(|s| s.step).collect()
+        self.steps
+            .iter()
+            .filter(|s| matches!(s.outcome, StepOutcome::Failed { .. }))
+            .map(|s| s.step)
+            .collect()
     }
 }
 
@@ -75,8 +82,11 @@ fn prune_hints(s: &Services) -> Result<usize> {
 }
 
 /// The steps of a pass, in order.
-pub const STEPS: &[Step] =
-    &[("expire_leases", expire_leases), ("end_stale_sessions", end_stale_sessions), ("prune_hints", prune_hints)];
+pub const STEPS: &[Step] = &[
+    ("expire_leases", expire_leases),
+    ("end_stale_sessions", end_stale_sessions),
+    ("prune_hints", prune_hints),
+];
 
 /// One housekeeping pass. A plain function: callable from the loop, tests and admin commands.
 pub fn housekeeping_pass(s: &Services) -> PassReport {
@@ -88,7 +98,9 @@ pub fn housekeeping_pass_with(s: &Services, steps: &[Step]) -> PassReport {
     let mut out = Vec::with_capacity(steps.len());
     for &(name, step) in steps {
         let outcome = if name == "end_stale_sessions" && s.settings().auto_end_ms <= 0 {
-            StepOutcome::Skipped { reason: "CORVUS_AUTO_END_SECONDS is 0".into() }
+            StepOutcome::Skipped {
+                reason: "CORVUS_AUTO_END_SECONDS is 0".into(),
+            }
         } else {
             match catch_unwind(AssertUnwindSafe(|| step(s))) {
                 Ok(Ok(count)) => StepOutcome::Ok { count },
@@ -103,7 +115,9 @@ pub fn housekeeping_pass_with(s: &Services, steps: &[Step]) -> PassReport {
                         .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned()))
                         .unwrap_or_else(|| "panic".into());
                     tracing::error!(step = name, panic = %msg, "housekeeping step panicked; continuing");
-                    StepOutcome::Failed { error: format!("panicked: {msg}") }
+                    StepOutcome::Failed {
+                        error: format!("panicked: {msg}"),
+                    }
                 }
             }
         };
@@ -133,7 +147,11 @@ impl BackgroundLeader {
     pub fn try_acquire(state_dir: &Path, kind: &str) -> std::io::Result<Option<Self>> {
         let run = state_dir.join("run");
         crate::config::ensure_private_dir(&run)?;
-        let lock = OpenOptions::new().create(true).truncate(false).write(true).open(run.join("leader.lock"))?;
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(run.join("leader.lock"))?;
         match lock.try_lock() {
             Ok(()) => {}
             Err(std::fs::TryLockError::WouldBlock) => return Ok(None),
@@ -152,7 +170,10 @@ impl BackgroundLeader {
             f.sync_all()?;
         }
         std::fs::rename(&tmp, &info_path)?;
-        Ok(Some(Self { _lock: lock, info_path }))
+        Ok(Some(Self {
+            _lock: lock,
+            info_path,
+        }))
     }
 
     /// The current holder, as recorded in `leader.json` (may be stale if the holder crashed).
@@ -173,17 +194,23 @@ impl Drop for BackgroundLeader {
     }
 }
 
-/// Timings of the background loop (tests shrink them).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Timings and steps of the background loop (tests shrink the timings and inject steps).
+#[derive(Debug, Clone, Copy)]
 pub struct LoopTimings {
     pub first_pass: Duration,
     pub interval: Duration,
     pub leader_retry: Duration,
+    pub steps: &'static [Step],
 }
 
 impl Default for LoopTimings {
     fn default() -> Self {
-        Self { first_pass: FIRST_PASS_AFTER, interval: PASS_INTERVAL, leader_retry: LEADER_RETRY }
+        Self {
+            first_pass: FIRST_PASS_AFTER,
+            interval: PASS_INTERVAL,
+            leader_retry: LEADER_RETRY,
+            steps: STEPS,
+        }
     }
 }
 
@@ -213,22 +240,33 @@ pub async fn run_background(
         }
         tokio::select! {
             () = tokio::time::sleep(timings.leader_retry) => {}
-            _ = shutdown.changed() => {}
+            changed = shutdown.changed() => {
+                // A dropped sender means the owner is gone: stop.
+                if changed.is_err() {
+                    return;
+                }
+            }
         }
     };
 
-    let mut ticks = tokio::time::interval_at(tokio::time::Instant::now() + timings.first_pass, timings.interval);
+    let mut ticks =
+        tokio::time::interval_at(tokio::time::Instant::now() + timings.first_pass, timings.interval);
     ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         tokio::select! {
             _ = ticks.tick() => {}
-            _ = shutdown.changed() => {}
+            changed = shutdown.changed() => {
+                if changed.is_err() {
+                    break;
+                }
+            }
         }
         if *shutdown.borrow() {
             break;
         }
         let s = services.clone();
-        match tokio::task::spawn_blocking(move || housekeeping_pass(&s)).await {
+        let steps = timings.steps;
+        match tokio::task::spawn_blocking(move || housekeeping_pass_with(&s, steps)).await {
             Ok(report) => {
                 tracing::info!(report = %serde_json::to_string(&report).unwrap_or_default(), "housekeeping pass");
                 on_pass(&report);
@@ -241,5 +279,7 @@ pub async fn run_background(
 
 /// Checkpoints the WAL into the database file (on shutdown).
 pub fn checkpoint(s: &Services) -> Result<()> {
-    s.db().checkpoint().map_err(|e| CorvusError::Internal(format!("checkpoint: {e}")))
+    s.db()
+        .checkpoint()
+        .map_err(|e| CorvusError::Internal(format!("checkpoint: {e}")))
 }

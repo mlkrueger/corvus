@@ -346,6 +346,20 @@ impl Database {
         Ok(out)
     }
 
+    /// Checkpoints the WAL into the main file and truncates it (on shutdown). Not a write transaction.
+    pub fn checkpoint(&self) -> Result<()> {
+        let conn = lock(&self.writer);
+        let (busy, _, _): (i64, i64, i64) = conn
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })
+            .db()?;
+        if busy != 0 {
+            return Err(CorvusError::Busy);
+        }
+        Ok(())
+    }
+
     /// Write-transaction timings since this handle opened (or since [`Database::reset_write_stats`]).
     pub fn write_stats(&self) -> WriteStats {
         WriteStats {

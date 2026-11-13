@@ -396,14 +396,7 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
             })?;
             let token = corvus_http::ApiToken::new(token.expose())?;
             let (corvus, _) = corvus_core::Corvus::open(&config)?;
-            runtime()?
-                .block_on(corvus_http::serve(
-                    corvus,
-                    token,
-                    config.http_port,
-                    shutdown_signal(),
-                ))
-                .map_err(|e| CorvusError::Internal(format!("serve: {e}")))?;
+            runtime()?.block_on(serve_with_background(corvus, token, &config))?;
             Ok(Value::Null)
         }
         Command::Admin {
@@ -533,6 +526,44 @@ fn task_cmd(s: &Services, config: &Config, c: TaskCommand) -> Result<Value, Corv
         }
         TaskCommand::Get { task_id } => json(h.get_task(&task_id)),
     }
+}
+
+/// The HTTP API plus the background loops (as a leader candidate) until SIGINT/SIGTERM; then stop the loops
+/// and checkpoint the WAL.
+async fn serve_with_background(
+    corvus: corvus_core::Corvus,
+    token: corvus_http::ApiToken,
+    config: &Config,
+) -> Result<(), CorvusError> {
+    use corvus_core::background::{LoopTimings, checkpoint, run_background};
+    let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+    let background = tokio::spawn(run_background(
+        corvus.services().clone(),
+        config.state_dir.clone(),
+        "serve",
+        LoopTimings::default(),
+        stop_rx.clone(),
+        |_| {},
+    ));
+    let mut http_stop = stop_rx;
+    let signal = tokio::spawn(async move {
+        shutdown_signal().await;
+        let _ = stop_tx.send(true);
+    });
+    let services = corvus.services().clone();
+    let served = corvus_http::serve(corvus, token, config.http_port, async move {
+        let _ = http_stop.wait_for(|stop| *stop).await;
+    })
+    .await;
+    signal.abort();
+    let _ = background.await;
+    if let Err(e) = tokio::task::spawn_blocking(move || checkpoint(&services))
+        .await
+        .unwrap_or(Ok(()))
+    {
+        tracing::warn!(error = %e, "WAL checkpoint on shutdown failed");
+    }
+    served.map_err(|e| CorvusError::Internal(format!("serve: {e}")))
 }
 
 fn runtime() -> Result<tokio::runtime::Runtime, CorvusError> {

@@ -2,6 +2,7 @@
 //! services that own every transaction.
 
 pub mod api;
+pub mod background;
 pub mod clock;
 pub mod config;
 pub mod db;
