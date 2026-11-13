@@ -83,6 +83,8 @@ enum Command {
     Stats,
     /// The MCP server over stdio. Needs no server, token or port.
     Mcp,
+    /// Launch the desktop app (or focus it if it is running).
+    Ui,
     /// The HTTP API on 127.0.0.1 (requires CORVUS_API_TOKEN).
     Serve,
     /// Administrative commands.
@@ -383,6 +385,7 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         Command::Decision { command } => decision_cmd(&services(&config)?, &config, command),
         Command::Bootstrap { agent } => json(services(&config)?.muninn().bootstrap(&agent)),
         Command::Stats => json(services(&config)?.overview().stats()),
+        Command::Ui => launch_desktop_app(),
         Command::Mcp => {
             let (corvus, _) = corvus_core::Corvus::open(&config)?;
             runtime()?.block_on(corvus_mcp::run_stdio(corvus, config.agent_name.clone()))?;
@@ -564,6 +567,47 @@ async fn serve_with_background(
         tracing::warn!(error = %e, "WAL checkpoint on shutdown failed");
     }
     served.map_err(|e| CorvusError::Internal(format!("serve: {e}")))
+}
+
+/// Where the desktop app may be: the macOS app bundle in the usual places, or a `corvus-desktop` executable next
+/// to this binary (development builds and Linux installs).
+fn desktop_app_candidates() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if cfg!(target_os = "macos") {
+        out.push(PathBuf::from("/Applications/Corvus.app"));
+        if let Some(home) = std::env::var_os("HOME") {
+            out.push(PathBuf::from(home).join("Applications/Corvus.app"));
+        }
+    }
+    if let Ok(me) = std::env::current_exe()
+        && let Some(dir) = me.parent()
+    {
+        out.push(dir.join("corvus-desktop"));
+    }
+    out
+}
+
+/// Launches (or, through the app's single-instance guard, focuses) the desktop app. No browser fallback.
+fn launch_desktop_app() -> Result<Value, CorvusError> {
+    let Some(app) = desktop_app_candidates().into_iter().find(|p| p.exists()) else {
+        return Err(CorvusError::NotFound(
+            "the Corvus desktop app is not installed (looked for Corvus.app and corvus-desktop next to this binary)"
+                .into(),
+        ));
+    };
+    let mut cmd = if app.extension().is_some_and(|e| e == "app") {
+        let mut c = std::process::Command::new("open");
+        c.arg("-a").arg(&app);
+        c
+    } else {
+        std::process::Command::new(&app)
+    };
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    cmd.spawn()
+        .map_err(|e| CorvusError::Internal(format!("could not launch {}: {e}", app.display())))?;
+    Ok(json!({ "ok": true, "launched": app }))
 }
 
 fn runtime() -> Result<tokio::runtime::Runtime, CorvusError> {

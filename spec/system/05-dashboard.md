@@ -107,7 +107,13 @@ connect-src <only what Tauri IPC requires>; base-uri 'none'; form-action 'none';
 require-trusted-types-for 'script'      (kept if the webview enforces it and Tauri's IPC tolerates it)
 ```
 
-The exact `connect-src` value and whether Trusted Types can stay are settled by the spike and recorded here.
+**Spike result (2026-11-13, macOS 26 / WKWebView, Tauri 2.11, Svelte 5.57 with `fragments: 'tree'`):**
+`connect-src ipc: http://ipc.localhost` (the `ipc:` scheme on macOS; Tauri falls back to `http://ipc.localhost` on
+other platforms). Trusted Types stays: WKWebView enforces `require-trusted-types-for 'script'` (a raw HTML
+assignment throws), and Tauri's IPC works under it. The built bundle contains no HTML sinks; its only absolute
+URLs are `https://svelte.dev/e/…` links inside Svelte's runtime warning messages, which the scan allows by
+exact prefix (they are text, never loaded). Linux / WebKitGTK was not checked (no Linux machine in the build
+environment).
 
 ### Layout
 

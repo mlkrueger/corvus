@@ -10,12 +10,17 @@ description = "Pure Corvus domain types and validation. No IO."
 [dependencies]
 serde.workspace = true
 schemars.workspace = true
+ts-rs = { workspace = true, optional = true }
 thiserror.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
 serde_json.workspace = true
+
+[features]
+# TypeScript type generation for the dashboard (system/05).
+ts = ["dep:ts-rs"]
 
 [lints]
 workspace = true

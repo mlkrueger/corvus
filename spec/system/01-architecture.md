@@ -158,3 +158,5 @@ macOS release artifacts are code-signed with the owner's personal signing identi
 - There is no dashboard without the desktop app; a headless machine has the CLI and the HTTP API.
 - The desktop app's window behaviour is verified by unit tests on its guards plus a manual checklist.
 - The database must live on a local filesystem; network filesystems are unsupported.
+- The desktop app's single-instance guard listens on a Unix-domain socket in `/tmp` (no network port); see
+  [plan 0006](../plans/0006-dashboard-and-desktop.md#unverified--deferred).

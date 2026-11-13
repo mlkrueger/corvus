@@ -8,12 +8,14 @@ use corvus_domain::{ArtifactKind, EndReason, MessageType, Presence, SessionEndRe
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use ts_rs::TS;
 
 use crate::clock::Timestamp;
 
 // ---------- sessions ----------
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct RegisterSession {
     /// Omit to have Corvus generate and reserve a name like `keen-raven`.
@@ -27,7 +29,8 @@ pub struct RegisterSession {
     pub idempotency_key: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SessionView {
     pub id: String,
     pub agent_name: String,
@@ -44,7 +47,8 @@ pub struct SessionView {
     pub lease_expires_at: Option<Timestamp>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ListSessions {
     /// Include ended sessions (default false).
@@ -54,7 +58,8 @@ pub struct ListSessions {
     pub agent: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct EndStaleResult {
     /// Ids of the sessions this pass ended.
     pub ended: Vec<String>,
@@ -62,7 +67,8 @@ pub struct EndStaleResult {
 
 // ---------- tasks ----------
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactInput {
     pub kind: ArtifactKind,
@@ -73,7 +79,8 @@ pub struct ArtifactInput {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ArtifactView {
     pub id: String,
     pub kind: ArtifactKind,
@@ -83,7 +90,8 @@ pub struct ArtifactView {
     pub created_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTask {
     pub creator: String,
@@ -110,7 +118,8 @@ pub struct CreateTask {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Holder {
     pub agent_name: String,
     pub session_id: String,
@@ -119,7 +128,8 @@ pub struct Holder {
     pub lease_expires_at: Timestamp,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct TaskView {
     pub id: String,
     pub title: String,
@@ -146,7 +156,8 @@ pub struct TaskView {
     pub holder: Option<Holder>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ClaimView {
     pub id: String,
     pub task_id: String,
@@ -158,7 +169,8 @@ pub struct ClaimView {
     pub end_reason: Option<EndReason>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ClaimTask {
     pub session_id: String,
@@ -167,19 +179,22 @@ pub struct ClaimTask {
 }
 
 /// `claim_task`'s result: both `null` when nothing is claimable.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ClaimResult {
     pub task: Option<TaskView>,
     pub claim: Option<ClaimView>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct SessionRef {
     pub session_id: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct CompleteTask {
     pub session_id: String,
@@ -187,7 +202,8 @@ pub struct CompleteTask {
     pub result_summary: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct CancelTask {
     /// The agent cancelling (the operator, the creator, or anyone).
@@ -201,14 +217,16 @@ pub struct CancelTask {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct CancelResult {
     pub task: TaskView,
     /// Ids cancelled by this call (empty on an idempotent replay).
     pub cancelled: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ListTasks {
     #[serde(default)]
@@ -220,14 +238,16 @@ pub struct ListTasks {
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ExpireResult {
     pub expired: usize,
 }
 
 // ---------- threads and messages (plan 0003) ----------
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct CreateThread {
     pub creator: String,
@@ -242,7 +262,8 @@ pub struct CreateThread {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ThreadView {
     pub id: String,
     pub title: String,
@@ -254,7 +275,8 @@ pub struct ThreadView {
     pub artifacts: Vec<ArtifactView>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct PostMessage {
     pub thread_id: String,
@@ -279,7 +301,8 @@ fn default_message_type() -> MessageType {
     MessageType::Note
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MessageView {
     pub id: i64,
     pub thread_id: String,
@@ -294,7 +317,8 @@ pub struct MessageView {
     pub artifacts: Vec<ArtifactView>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct SendDirect {
     pub from: String,
@@ -308,7 +332,8 @@ pub struct SendDirect {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ReadInbox {
     pub agent: String,
@@ -319,7 +344,8 @@ pub struct ReadInbox {
     pub after_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct AckMessage {
     pub agent: String,
@@ -327,13 +353,15 @@ pub struct AckMessage {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct AckResult {
     pub message_id: i64,
     pub newly_acked: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ListMessages {
     #[serde(default)]
@@ -350,7 +378,8 @@ pub struct ListMessages {
     pub unread_only: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MessageListItem {
     #[serde(flatten)]
     pub message: MessageView,
@@ -359,7 +388,8 @@ pub struct MessageListItem {
     pub unread_by: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct WaitForInbox {
     pub agent: String,
@@ -374,7 +404,8 @@ pub struct WaitForInbox {
 
 // ---------- memory ----------
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct WriteDigest {
     pub author: String,
@@ -392,7 +423,8 @@ pub struct WriteDigest {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct DigestView {
     pub id: i64,
     pub scope: String,
@@ -405,7 +437,8 @@ pub struct DigestView {
     pub created_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct RecordDecision {
     pub decided_by: String,
@@ -425,7 +458,8 @@ pub struct RecordDecision {
     pub session_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct DecisionView {
     pub id: String,
     pub title: String,
@@ -439,7 +473,8 @@ pub struct DecisionView {
     pub created_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ListDecisions {
     #[serde(default)]
@@ -455,7 +490,8 @@ pub struct ListDecisions {
 // ---------- bootstrap, connect, stats, overview, health ----------
 
 /// Everything an agent needs on arrival (system/03 "Agent guidance").
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Bootstrap {
     pub agent: String,
     /// Routed to this agent and open, or claimed by it.
@@ -469,14 +505,16 @@ pub struct Bootstrap {
     pub decisions: Vec<DecisionView>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ConnectResult {
     pub session: SessionView,
     pub bootstrap: Bootstrap,
     pub guidance: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Stats {
     pub open_tasks: i64,
     pub claimed_tasks: i64,
@@ -486,7 +524,8 @@ pub struct Stats {
     pub unread_by_agent: std::collections::BTreeMap<String, i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct EventView {
     pub id: i64,
     pub kind: String,
@@ -499,7 +538,8 @@ pub struct EventView {
     pub created_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ListEvents {
     #[serde(default)]
@@ -508,14 +548,16 @@ pub struct ListEvents {
     pub before_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct OverviewSession {
     #[serde(flatten)]
     pub session: SessionView,
     pub unread: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct TaskColumns {
     pub open: Vec<TaskView>,
     pub claimed: Vec<TaskView>,
@@ -523,7 +565,8 @@ pub struct TaskColumns {
     pub cancelled: Vec<TaskView>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Thresholds {
     pub active_seconds: i64,
     pub idle_seconds: i64,
@@ -531,7 +574,8 @@ pub struct Thresholds {
     pub auto_end_seconds: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Overview {
     pub generated_at: Timestamp,
     pub operator_name: String,
@@ -547,7 +591,8 @@ pub struct Overview {
     pub decisions: Vec<DecisionView>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Health {
     pub ok: bool,
     pub schema_version: i64,
@@ -555,7 +600,8 @@ pub struct Health {
 
 // ---------- export ----------
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
 #[serde(deny_unknown_fields)]
 pub struct ExportRequest {
     /// Directory inside the export repository. Default `coordination`.
@@ -566,7 +612,8 @@ pub struct ExportRequest {
     pub commit: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ExportResult {
     /// Repo-relative paths written.
     pub paths: Vec<String>,

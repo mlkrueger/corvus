@@ -60,6 +60,8 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 50 | Wrong method on a known path | 405 with an empty body (plus the security headers) | axum's default; not a data route |
 | 51 | MCP session fill | Remembered `session_id` is filled only when the call's agent fields resolve to the remembered agent | A call made "as someone else" must not borrow this session |
 | 52 | HTTP shutdown grace | In-flight requests get 5 s after the signal | Long polls must not hold shutdown for 120 s |
+| 53 | Package manager for `ui/` | npm (with a committed `package-lock.json`) | Ships with Node; one less tool for contributors |
+| 54 | Generated TypeScript integers | `number` (ts-rs `TS_RS_LARGE_INT`) | `JSON.parse` yields numbers; ids and counts stay below 2^53 |
 
 ## Deliberate departures from the brief's wording
 

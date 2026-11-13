@@ -1,14 +1,53 @@
 # Development conveniences only; nothing here is needed to build or run Corvus.
-.PHONY: test lint fmt check-purity check-rusqlite check-sql-clock check-seam run
+.PHONY: ui ui-deps types check-types test test-rust test-ui test-e2e lint lint-ui check-cli-node-free fmt check-purity check-rusqlite check-sql-clock check-seam run
 
 CARGO ?= cargo
 NON_CORE_CRATES := corvus-domain corvus-jira corvus-linear corvus-http corvus-mcp corvus-cli corvus-desktop
 
-test:
+# The dashboard (development needs Node; the corvus binary does not).
+ui-deps:
+	cd ui && npm ci --no-audit --no-fund
+
+ui: ui-deps
+	cd ui && npm run build
+
+test: ui test-rust test-ui
+
+test-rust:
 	$(CARGO) test --workspace
 
-lint: check-purity check-rusqlite check-sql-clock check-seam
+test-ui:
+	cd ui && npm test && npm run scan
+
+# Dashboard bundle in WebKit and Chromium against a throwaway corvus serve; app checks that need a GUI session.
+test-e2e: ui
+	$(CARGO) build -p corvus-cli
+	cd ui && npm run e2e
+	CORVUS_GUI_TESTS=1 $(CARGO) test -p corvus-desktop
+
+lint-ui: ui-deps
+	cd ui && npm run lint && npm run check
+
+# The corvus binary must build without Node or the desktop app's toolkit.
+check-cli-node-free:
+	@if $(CARGO) tree -p corvus-cli -e normal --prefix none --format '{p}' | awk '{print $$1}' | grep -qE '^(tauri|tauri-build|wry|tao|corvus-desktop)$$'; then \
+	  echo "corvus-cli must not depend on the desktop app"; exit 1; fi
+	@echo "cli without desktop deps: ok"
+
+# Regenerate the dashboard's TypeScript API types from the Rust structs (ts-rs).
+types:
+	rm -rf ui/src/lib/types
+	$(CARGO) test -q -p corvus-core --lib export_bindings > /dev/null
+
+# Generated types must match the Rust structs (fails on drift; run `make types` and commit).
+check-types:
+	@tmp=$$(mktemp -d); TS_RS_EXPORT_DIR=$$tmp $(CARGO) test -q -p corvus-core --lib export_bindings > /dev/null; \
+	if ! diff -r $$tmp ui/src/lib/types > /dev/null; then echo "ui/src/lib/types is stale: run make types"; diff -r $$tmp ui/src/lib/types | head -20; rm -rf $$tmp; exit 1; fi; \
+	rm -rf $$tmp; echo "generated types: ok"
+
+lint: check-purity check-rusqlite check-sql-clock check-seam check-types check-cli-node-free lint-ui
 	$(CARGO) fmt --all -- --check
+	@test -d ui/dist || $(MAKE) ui
 	$(CARGO) clippy --workspace --all-targets -- -D warnings
 
 fmt:

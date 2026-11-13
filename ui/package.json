@@ -1,0 +1,37 @@
+{
+  "name": "corvus-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "scan": "node scripts/scan-bundle.mjs dist",
+    "scan:data": "node scripts/scan-no-data.mjs dist",
+    "test": "vitest run",
+    "lint": "eslint . && node scripts/lint-sinks.mjs",
+    "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tauri-apps/api": "^2.12.4",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/svelte": "^5.4.2",
+    "@testing-library/user-event": "^14.6.10",
+    "eslint": "^10.14.0",
+    "eslint-plugin-svelte": "^3.24.1",
+    "globals": "^17.14.0",
+    "jsdom": "^31.0.1",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.8",
+    "svelte-eslint-parser": "^1.10.1",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0",
+    "@types/node": "^24.0.0"
+  }
+}

@@ -8,6 +8,7 @@ macro_rules! string_enum {
     ($(#[$m:meta])* $name:ident, $label:literal, { $($variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename_all = "snake_case"))]
         pub enum $name { $($variant),+ }
 
         impl $name {

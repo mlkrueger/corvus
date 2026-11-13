@@ -1,0 +1,5 @@
+[env]
+# ts-rs writes the dashboard's generated API types here (system/05). Regenerate with `make types`.
+TS_RS_EXPORT_DIR = { value = "ui/src/lib/types", relative = true }
+# JSON numbers arrive as JS numbers; ids and counts stay far below 2^53.
+TS_RS_LARGE_INT = "number"

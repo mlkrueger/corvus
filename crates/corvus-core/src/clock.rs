@@ -112,7 +112,8 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 }
 
 /// UTC milliseconds that serialise as RFC 3339 (the wire format for every timestamp).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ts_rs::TS)]
+#[ts(export, type = "string")]
 pub struct Timestamp(pub Millis);
 
 impl serde::Serialize for Timestamp {
