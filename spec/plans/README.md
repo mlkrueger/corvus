@@ -1,0 +1,29 @@
+# Plans
+
+One plan per feature or unit of work. Rules: [`/AGENTS.md` §3](../../AGENTS.md#3-plans). Template:
+[`_template.md`](_template.md). Start with the [roadmap](0000-roadmap.md).
+
+A plan says what gets built, in what order, and how it is verified. Lasting design goes in
+[`../system/`](../system/README.md). Every plan ends with a `## Decisions` table that summarises and links the
+[decision records](../decisions/README.md) it relies on.
+
+## Index
+
+| # | Plan | Status | Depends on |
+|---|---|---|---|
+| [0000](0000-roadmap.md) | Roadmap: build order and milestones | Ready | — |
+| [0001](0001-foundation.md) | Foundation: workspace, config, embedded database, migrations | Ready | — |
+| [0002](0002-huginn-work-queue.md) | Huginn: sessions, tasks, claims, leases, cancellation | Ready | 0001 |
+| [0003](0003-muninn-hermod.md) | Muninn + Hermod: messaging, memory, export, wake-ups | Ready | 0002 |
+| [0004](0004-transports.md) | Transports: CLI, MCP server, HTTP API | Ready | 0003 |
+| [0005](0005-housekeeping.md) | Housekeeping loop and background leader | Ready | 0004 |
+| [0006](0006-dashboard-and-desktop.md) | Dashboard (Svelte) and self-contained desktop app (Tauri 2) | Ready | 0004, 0005 |
+| [0007](0007-delivery-helpers.md) | Delivery helpers: hook, wake supervisor, agent adapters, stack commands | Ready | 0004 |
+| [0008](0008-work-sources-and-linear.md) | Work-source engine + Linear adapter | Ready | 0005, 0006 (panel) |
+| [0009](0009-jira-source.md) | Jira adapter | Ready | 0008 |
+| [0010](0010-docs-and-release.md) | Docs, `DECISIONS.md`, full verification, honest report | Ready | all |
+| [0011](0011-distribution.md) | Distribution: release binaries and the desktop bundle | Ready | 0006, 0007 |
+
+Next free number: **0012**. Numbers are identifiers, not order — 0011 is built before 0010; see the roadmap.
+
+Status values: `Draft` (being written) · `Ready` (agreed, not started) · `In progress` · `Done` · `Abandoned`.
