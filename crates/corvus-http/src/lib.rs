@@ -100,6 +100,7 @@ pub async fn serve(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+    tracing::info!(url = %format!("http://127.0.0.1:{port}"), "serving the HTTP API");
     let router = app(corvus, token, port);
     let (stopping_tx, stopping_rx) = tokio::sync::oneshot::channel::<()>();
     let server = axum::serve(listener, router).with_graceful_shutdown(async move {

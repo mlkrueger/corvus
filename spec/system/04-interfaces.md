@@ -17,8 +17,17 @@ A transport parses input, calls exactly one service method, and serialises the r
 | `Busy` (database write queue timed out; retry) | 503 | `busy` | tool error | 6 |
 | `Internal` | 500 | `internal` (no detail leaked) | tool error | 1 |
 
-Body shape everywhere: `{"error": {"code": "...", "message": "..."}}`. MCP tool errors return the same JSON as
-text with `isError: true`, so the agent can read the message (for example "register again").
+Body shape for every error raised by a handler or a middleware: `{"error": {"code": "...", "message": "..."}}`.
+MCP tool errors return the same JSON as text with `isError: true`, so the agent can read the message (for example
+"register again"). HTTP specifics (as built):
+
+| Case | Response |
+|---|---|
+| unknown path / wrong method on a known path | `404` / `405` with an empty body (plus the security headers) |
+| body over 256 KiB | `413` `payload_too_large` |
+| whole request over 130 s (only a stuck request; the long poll ends at 120 s) | `408` |
+| missing or wrong token | `401` `unauthorized` with `WWW-Authenticate: Bearer` |
+| POST/PUT without `Content-Type: application/json`, malformed JSON, unknown field | `422` `validation` |
 
 ## HTTP API
 
@@ -35,7 +44,11 @@ for scripts and other tools; there is no browser UI and no `/ui` route ([D0020](
 Base `http://127.0.0.1:${CORVUS_HTTP_PORT}`. JSON in and out. `Authorization: Bearer <token>` on **every**
 route — none is exempt. There is no OpenAPI, schema or docs route (P6). Request bodies are capped at 256 KiB.
 
-Mutation routes take `idempotency_key` in the JSON body.
+Create routes take `idempotency_key` in the JSON body (sessions / connect, tasks, messages, direct messages,
+digests, decisions); threads use their own `key`. The other mutations (renew, release, complete, cancel, ack,
+admin, sources) are idempotent by their own rules and take no key. Full request/response shapes and every query
+parameter (e.g. `limit`, `after_id`, `include_ended`) are in [docs/usage.md](../../docs/usage.md), which a test
+keeps in step with the route table.
 
 | Method & path | Service call |
 |---|---|
@@ -96,17 +109,17 @@ corvus task create|claim|renew|release|complete|cancel|list|get
 corvus msg post
 corvus inbox read|ack|wait
 corvus tell <agent> <message>          # operator direct message; --from defaults to CORVUS_OPERATOR_NAME
-corvus digest write
+corvus digest write|list
 corvus decision record|list
 corvus bootstrap <agent>
 corvus stats | health
 corvus migrate
-corvus serve                           # HTTP API + background loops; requires CORVUS_API_TOKEN
-corvus mcp
+corvus serve                           # HTTP API + background loops; requires CORVUS_API_TOKEN; prints nothing
+corvus mcp                             # stdio; stdout is protocol only
 corvus ui                              # launches (or focuses) the desktop app
 corvus jira-sync | linear-sync
 corvus admin expire-leases|end-stale|export|backup
-corvus hook                            # Claude Code inbox hook     (06)
+corvus hook                            # Claude Code inbox hook; always exits 0     (06)
 corvus watch <agent> [--exec <cmd>]    # wake supervisor            (06)
 corvus agent bind|unbind|list         # which tool an agent runs in (06)
 corvus adapter list|show|check        # agent-tool adapters        (06)

@@ -1,6 +1,6 @@
 # Plan 0010 — Docs, `DECISIONS.md`, full verification, honest report
 
-- **Status:** Ready
+- **Status:** In progress
 - **Depends on:** all previous plans
 - **Spec:** [system/09](../system/09-testing.md#honesty-rule) · brief §7, §8
 
@@ -18,31 +18,31 @@ final full-suite run and report, spec reconciliation.
 
 ## Work breakdown
 
-- [ ] 1. `README.md`: what it is, quick start (download or `cargo install`, then `corvus mcp` in the agent's
+- [x] 1. `README.md`: what it is, quick start (download or `cargo install`, then `corvus mcp` in the agent's
       config — or open the desktop app), connecting an agent (MCP + hook), running tests. Explains in plain words when `corvus serve` is needed (headless background work, HTTP API) and why it requires a token even though it is local. Includes the guidance text; a test fails if it drifts from `GUIDANCE`.
-- [ ] 2. `docs/usage.md`: routes, CLI commands and MCP tools, generated or checked against the code where possible.
-- [ ] 3. `docs/architecture.md`: the design in brief, decisions, **known gaps** (from
+- [x] 2. `docs/usage.md`: routes, CLI commands and MCP tools, generated or checked against the code where possible.
+- [x] 3. `docs/architecture.md`: the design in brief, decisions, **known gaps** (from
       [system/01](../system/01-architecture.md#known-gaps-kept-current-feeds-the-final-architecture-note)).
-- [ ] 4. Root `DECISIONS.md`: index of [spec/decisions](../decisions/README.md) (one line each, linked) plus the
+- [x] 4. Root `DECISIONS.md`: index of [spec/decisions](../decisions/README.md) (one line each, linked) plus the
       [defaults table](../system/11-defaults.md). A test checks every decision record is listed.
-- [ ] 5. Reconcile: walk each system-spec file against the code; fix the spec where the build diverged; make
+- [x] 5. Reconcile: walk each system-spec file against the code; fix the spec where the build diverged; make
       sure every plan's status, checkboxes and "Unverified / deferred" section are current.
-- [ ] 6. Full run from a clean checkout: `make lint`, `make test`, `make test-e2e`; capture results.
-- [ ] 7. Fresh-machine walkthrough of the README by someone (or an agent) with no context.
-- [ ] 8. Final report: what passes (with counts), what was not built, what was verified only by hand, what
+- [x] 6. Full run from a clean checkout: `make lint`, `make test`, `make test-e2e`; capture results.
+- [x] 7. Fresh-machine walkthrough of the README by someone (or an agent) with no context.
+- [x] 8. Final report: what passes (with counts), what was not built, what was verified only by hand, what
       could not be verified.
 
 ## Verification
 
-- [ ] Docs tests pass (guidance copy, decisions index completeness, no secret-looking strings in the repo).
-- [ ] A link checker finds no broken relative links under `spec/`, `docs/` and the root docs.
-- [ ] Every row of the [required test matrix](../system/09-testing.md#required-test-matrix) maps to named, passing tests.
+- [x] Docs tests pass (guidance copy, decisions index completeness, no secret-looking strings in the repo).
+- [x] A link checker finds no broken relative links under `spec/`, `docs/` and the root docs.
+- [x] Every row of the [required test matrix](../system/09-testing.md#required-test-matrix) maps to named, passing tests.
 - [ ] The README quick start works verbatim on a clean machine with nothing but the released binary.
 
 ## Exit criteria
 
-- [ ] The final report exists and makes no claim that was not exercised.
-- [ ] All plans are `Done` or explicitly `Abandoned` with a reason.
+- [x] The final report exists and makes no claim that was not exercised ([docs/report.md](../../docs/report.md)).
+- [ ] All plans are `Done` or explicitly `Abandoned` with a reason. (0006, 0007 and 0011 remain *In progress* pending owner checks — listed in the report.)
 
 ## Open questions
 
@@ -50,7 +50,14 @@ final full-suite run and report, spec reconciliation.
 
 ## Unverified / deferred
 
-—
+- **README quick start on a clean machine with only the released binary**: walked through by a no-context agent
+  using the release binary in an isolated home directory on this Mac (not a separate clean machine). It found
+  that step 3 failed (`tell` to an unknown agent); fixed and re-run. The Linux clean-container smoke test covers
+  the binary itself.
+- Step 5 reconciliation: `system/04` updated where the build diverged (error responses for 404/405/408/413,
+  `WWW-Authenticate`, which routes take idempotency keys, `digest list`, `serve`/`mcp`/`hook` output);
+  other spec files were updated plan by plan as the build went.
+- The plan cannot reach "all plans Done" until the owner's manual checks for plans 0006, 0007 and 0011 are done.
 
 ## Decisions
 

@@ -29,6 +29,17 @@ Claude Code does not document passing settings `env` to hooks:
 ```
 
 Use the same name the agent registers with (`register_session` / `CORVUS_AGENT_NAME` for `corvus mcp`).
+
+Test it by hand — this prints the JSON Claude Code would receive, or nothing:
+
+```sh
+corvus tell my-agent "hello"
+echo '{"hook_event_name":"UserPromptSubmit","session_id":"test1","prompt":"hi"}' | CORVUS_AGENT_NAME=my-agent corvus hook
+```
+
+**No output** means no new mail for that agent in that Claude session, a missing or mistyped
+`CORVUS_AGENT_NAME`, or no database yet — the hook is silent on every problem by design, so check the name first.
+It never marks anything read. Its per-session state is under `~/.corvus/hook/`.
 After-tool checks are throttled to one every `CORVUS_HOOK_THROTTLE_SECONDS` (default 5). Each message is shown
 once per Claude session, at most 10 at a time.
 

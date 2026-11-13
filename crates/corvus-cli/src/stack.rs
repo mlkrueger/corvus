@@ -120,6 +120,9 @@ fn server_state(config: &Config) -> Value {
         _ => false,
     };
     json!({
+        // `pid`/`running` describe a server started by `corvus up` (it has a pid file); `enabled` and `healthy`
+        // need CORVUS_API_TOKEN in this command's environment.
+        "running": pid.is_some(),
         "enabled": config.api_token.is_some(),
         "pid": pid,
         "healthy": healthy,
