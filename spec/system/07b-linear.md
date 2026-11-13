@@ -52,8 +52,13 @@ Only queries are ever sent; the adapter contains no mutation documents.
   ```
 - A GraphQL response with an `errors` array, an HTTP error, or a rate-limit response fails the pass (no partial
   views). Rate-limit headers are logged; the next attempt is the next scheduled poll.
-- Field names and filter operators are re-verified against Linear's current schema at implementation
-  ([plan 0008](../plans/0008-work-sources-and-linear.md)).
+- **Schema confirmed 2026-11-13** against Linear's published SDK schema
+  (`packages/sdk/src/schema.graphql` in github.com/linear/linear) and linear.app/developers: every field and
+  operator above exists as written (`IssueFilter.assignee.isMe`, `state.name.in`, `completedAt.gte` taking an
+  ISO 8601 timestamp, `team.key.in`, `or`; `issue(id:)` accepts an identifier such as `ENG-123`; personal keys
+  use `Authorization: <key>` without `Bearer`). `issues` excludes archived issues by default (not included).
+  Rate limits arrive as HTTP 429 or an `errors[].extensions.code` of `RATELIMITED`; both fail the pass.
+  `workflowStates` lists every team's states; names are de-duplicated. Not exercised against a real workspace.
 
 ## Mapping
 

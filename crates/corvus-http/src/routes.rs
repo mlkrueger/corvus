@@ -13,7 +13,9 @@ use corvus_core::api::{
     RegisterSession, SendDirect, SessionRef, SessionView, Stats, TaskView, ThreadView, WaitForInbox,
     WriteDigest,
 };
+use corvus_core::api::{QueueTicket, SourceSummary, SourceView, SyncResult};
 use corvus_domain::{AgentName, CorvusError, SessionId, TaskId, ThreadId};
+use corvus_domain::{SourceFilter, SourceId};
 use serde::Deserialize;
 
 use crate::error::ApiError;
@@ -78,6 +80,11 @@ routes! {
     post "POST" "/api/admin/expire-leases" => expire_leases,
     post "POST" "/api/admin/end-stale-sessions" => end_stale_sessions,
     post "POST" "/api/admin/export" => export_state,
+    get "GET" "/api/sources" => list_sources,
+    get "GET" "/api/sources/{source}" => get_source,
+    put "PUT" "/api/sources/{source}/filter" => put_source_filter,
+    post "POST" "/api/sources/{source}/sync" => sync_source,
+    post "POST" "/api/sources/{source}/queue" => queue_ticket,
 }
 
 // ---------- path-parameter validation (422 before any service call) ----------
@@ -322,4 +329,38 @@ async fn end_stale_sessions(State(c): State<Corvus>) -> Res<EndStaleResult> {
 
 async fn export_state(State(c): State<Corvus>, OptBody(req): OptBody<ExportRequest>) -> Res<ExportResult> {
     out(c.run(move |s| s.export().export_state_to_git(&req)).await)
+}
+
+// ---------- work sources ----------
+
+fn source(p: &str) -> Result<SourceId, ApiError> {
+    SourceId::parse(p).map_err(ApiError::from)
+}
+
+async fn list_sources(State(c): State<Corvus>) -> Res<Vec<SourceSummary>> {
+    Ok(Json(c.sources().list()))
+}
+
+async fn get_source(State(c): State<Corvus>, P(id): P) -> Res<SourceView> {
+    let id = source(&id)?;
+    out(c.sources().view(id).await)
+}
+
+async fn put_source_filter(
+    State(c): State<Corvus>,
+    P(id): P,
+    Body(f): Body<SourceFilter>,
+) -> Res<SourceView> {
+    let id = source(&id)?;
+    out(c.sources().save_filter(id, f).await)
+}
+
+async fn sync_source(State(c): State<Corvus>, P(id): P) -> Res<SyncResult> {
+    let id = source(&id)?;
+    out(c.sources().sync(id).await)
+}
+
+async fn queue_ticket(State(c): State<Corvus>, P(id): P, Body(req): Body<QueueTicket>) -> Res<TaskView> {
+    let id = source(&id)?;
+    out(c.sources().queue(id, &req).await)
 }

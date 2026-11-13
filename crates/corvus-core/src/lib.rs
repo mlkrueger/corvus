@@ -13,6 +13,7 @@ pub mod hermod;
 pub mod ids;
 pub mod logging;
 pub mod services;
+pub mod sources;
 pub mod store;
 
 #[cfg(any(test, feature = "test-support"))]

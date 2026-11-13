@@ -1,6 +1,6 @@
 # Plan 0009 — Jira adapter
 
-- **Status:** Ready
+- **Status:** Done
 - **Depends on:** [0008](0008-work-sources-and-linear.md)
 - **Spec:** [system/07a](../system/07a-jira.md) · [system/07](../system/07-work-sources.md) · brief §4.9
 
@@ -18,36 +18,36 @@ tab's defaults and labels, the brief's Jira-specific tests.
 
 ## Work breakdown
 
-- [ ] 1. Verify the current Jira Cloud v3 endpoints (enhanced JQL search paging, comment paging, statuses).
-- [ ] 2. `corvus-domain`: JQL builder with escaping; `adf_to_text`; Jira priority map.
-- [ ] 3. `corvus-jira`: config validation (all-or-nothing, https only), Basic auth, client with the outbound
+- [x] 1. Verify the current Jira Cloud v3 endpoints (enhanced JQL search paging, comment paging, statuses).
+- [x] 2. `corvus-domain`: JQL builder with escaping; `adf_to_text`; Jira priority map.
+- [x] 3. `corvus-jira`: config validation (all-or-nothing, https only), Basic auth, client with the outbound
       rules, pagination, mapping to `Ticket` / `Comment`.
-- [ ] 4. Fake Jira server for tests (search pages, comments, statuses, failure injection).
-- [ ] 5. Register the adapter; `corvus jira-sync`; default filter; Jira tab wording.
-- [ ] 6. Re-run the engine matrix from 0008 through the Jira adapter + fake Jira as an end-to-end set.
+- [x] 4. Fake Jira server for tests (search pages, comments, statuses, failure injection).
+- [x] 5. Register the adapter; `corvus jira-sync`; default filter; Jira tab wording.
+- [x] 6. Re-run the engine matrix from 0008 through the Jira adapter + fake Jira as an end-to-end set.
 
 ## Verification
 
-- [ ] config: only some variables set → error naming the missing ones; `http://` base URL rejected; none set →
+- [x] config: only some variables set → error naming the missing ones; `http://` base URL rejected; none set →
       disabled; token never in logs, errors or the database.
-- [ ] JQL: always contains `assignee = currentUser()`; statuses quoted and escaped — property test that no
+- [x] JQL: always contains `assignee = currentUser()`; statuses quoted and escaped — property test that no
       valid status name can change the query's structure; projects and done window clauses appear only when set.
-- [ ] `adf_to_text`: paragraphs, headings, nested lists, code blocks, links, mentions, tables, hard breaks,
+- [x] `adf_to_text`: paragraphs, headings, nested lists, code blocks, links, mentions, tables, hard breaks,
       unknown nodes, non-document input; property test that it never panics.
-- [ ] client: follows `nextPageToken` to the last page; page failure fails the search; comment paging; redirect
+- [x] client: follows `nextPageToken` to the last page; page failure fails the search; comment paging; redirect
       responses are not followed; timeout enforced; issue keys validated before entering a URL path.
-- [ ] mapping: priority names; status category keys; `updated` kept verbatim (two stamps differing only in
+- [x] mapping: priority names; status category keys; `updated` kept verbatim (two stamps differing only in
       time-zone notation are treated as different, and nothing is parsed); numeric comment ids → order keys.
-- [ ] end-to-end through the fake Jira: assignment, idempotent re-poll, comment routing by task state,
+- [x] end-to-end through the fake Jira: assignment, idempotent re-poll, comment routing by task state,
       follow-ups, ignored accounts, re-assignment, rule scoping by project, manual queueing and its comment sync.
-- [ ] dashboard: the Jira tab shows the default filter (project AA rule); ticket keys are links only for
+- [x] dashboard: the Jira tab shows the default filter (project AA rule); ticket keys are links only for
       `https:` URLs and open in the system browser, never in the app's webview.
-- [ ] By hand (if a Jira site is available): real sync. Otherwise reported as not verified.
+- [ ] By hand (if a Jira site is available): real sync. **Not verified — no Jira site available.**
 
 ## Exit criteria
 
-- [ ] `make lint`, `make test`, `make test-e2e` pass.
-- [ ] `corvus-core` is unchanged by this plan except adapter registration.
+- [x] `make lint`, `make test`, `make test-e2e` pass.
+- [x] `corvus-core` is unchanged by this plan except adapter registration.
 
 ## Open questions
 
@@ -55,7 +55,18 @@ tab's defaults and labels, the brief's Jira-specific tests.
 
 ## Unverified / deferred
 
-—
+- **No real Jira site**: everything runs against a fake Jira. Endpoint shapes were confirmed against Atlassian's
+  OpenAPI document (recorded in [system/07a](../system/07a-jira.md#api-usage-rest-v3-read-only)).
+- Clicking a ticket link in the real desktop window (system browser hand-off) is on plan 0006's manual checklist.
+
+## Notes from implementation
+
+- Search pages are 50 issues (Jira's cap). Paging guards: at most 1,000 pages; a repeated `nextPageToken` fails
+  the pass. `adf_to_text` stops descending at depth 40.
+- Basic auth is encoded by a small in-crate base64 function (no extra dependency).
+- `corvus-core` changed only for registration-independent fixes found by the 0008 engine tests; the adapter is
+  wired by the binaries (`corvus_jira::from_config`).
+- End-to-end engine matrix through the real adapter + fake Jira: `crates/corvus-jira/tests/end_to_end.rs`.
 
 ## Decisions
 

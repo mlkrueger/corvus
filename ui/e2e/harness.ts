@@ -196,8 +196,32 @@ export const IPC_SHIM = `
     mcp_snippet: '{"mcpServers":{"corvus":{"command":"/opt/corvus/bin/corvus","args":["mcp"]}}}',
     hook_snippet: 'corvus hook --claude',
   };
+  // Sources can't be configured against a fake tracker from the browser harness, so a test may define
+  // window.__sourcesMock = { summaries, views, responses } (canned SourceSummary[] / SourceView by source id /
+  // {'METHOD /path': {status, body}} overrides). Without it, /api/sources* passes through to the real server.
+  // Every request answered from the mock is recorded in window.__sourceRequests.
+  const answerSources = (method, path, body) => {
+    const m = window.__sourcesMock;
+    window.__sourceRequests = window.__sourceRequests || [];
+    window.__sourceRequests.push({ method, path, body });
+    const canned = m.responses && m.responses[method + ' ' + path];
+    if (canned) return canned;
+    const parts = path.split('?')[0].split('/').filter(Boolean); // api, sources, {source}, {action}
+    if (method === 'GET' && parts.length === 2) return { status: 200, body: m.summaries };
+    const view = m.views && m.views[parts[2]];
+    if (!view) return { status: 404, body: { error: { code: 'not_found', message: 'no such source' } } };
+    if (method === 'GET' && parts.length === 3) return { status: 200, body: view };
+    if (method === 'PUT' && parts[3] === 'filter') {
+      m.views[parts[2]] = Object.assign({}, view, { filter: body });
+      return { status: 200, body: m.views[parts[2]] };
+    }
+    return { status: 500, body: { error: { code: 'internal', message: 'no canned response for ' + method + ' ' + path } } };
+  };
   window.__TAURI_INTERNALS__ = {
     invoke: async (cmd, args) => {
+      if (cmd === 'api' && window.__sourcesMock && args.path.startsWith('/api/sources')) {
+        return answerSources(args.method, args.path, args.body);
+      }
       if (cmd === 'api') {
         const hasBody = args.body !== null && args.body !== undefined;
         const res = await fetch(args.path, {

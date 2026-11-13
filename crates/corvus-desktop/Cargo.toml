@@ -19,6 +19,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 corvus-core.workspace = true
+corvus-linear.workspace = true
+corvus-jira.workspace = true
 corvus-http.workspace = true
 axum.workspace = true
 tokio.workspace = true

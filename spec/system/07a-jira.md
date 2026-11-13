@@ -24,7 +24,12 @@ Enabled only when all three are set; if only some are, startup fails with an err
 | Comments | `GET /rest/api/3/issue/{key}/comment` paged with `startAt` until `total` is reached |
 | Statuses | `GET /rest/api/3/status` → distinct names |
 
-Endpoint shapes are re-verified against Atlassian's current docs at implementation ([plan 0009](../plans/0009-jira-source.md)).
+**Endpoint shapes confirmed 2026-11-13** against Atlassian's published OpenAPI document
+(`swagger-v3.v3.json`): search request `jql`, `fields`, `maxResults`, `nextPageToken`; response `issues`,
+`nextPageToken`, `isLast`; **at most 50 issues per page** (the adapter asks for 50 and follows the token);
+`GET /rest/api/3/status` returns an array of `{name, statusCategory: {key}}`; comment pages are
+`{comments, startAt, maxResults, total}` with `author.accountId` / `author.displayName`. Not exercised against a
+real Jira site.
 
 ## Query building
 

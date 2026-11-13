@@ -33,11 +33,7 @@ fn route_table_is_complete_and_unique() {
     assert_eq!(set.len(), table.len(), "duplicate routes");
     for (m, p) in table {
         assert!(p.starts_with("/api/"), "{p}");
-        assert!(["GET", "POST"].contains(m), "{m}");
-        assert!(
-            !p.starts_with("/api/sources"),
-            "sources routes belong to plan 0008"
-        );
+        assert!(["GET", "POST", "PUT"].contains(m), "{m}");
     }
 }
 
@@ -123,7 +119,6 @@ async fn no_pages_docs_or_schema_routes() {
         "/api/",
         "/schema",
         "/",
-        "/api/sources",
     ] {
         let r = send(&e.app, Req::get(path).token()).await;
         assert_eq!(r.status, StatusCode::NOT_FOUND, "{path}");

@@ -14,5 +14,6 @@ pub mod hints;
 pub mod messages;
 pub mod receipts;
 pub mod sessions;
+pub mod sources;
 pub mod tasks;
 pub mod threads;

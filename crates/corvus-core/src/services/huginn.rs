@@ -505,3 +505,73 @@ fn reap(tx: &WriteTx<'_>, now: i64) -> Result<usize> {
     }
     Ok(expired.len())
 }
+
+/// A task created inside the caller's write transaction (work sources): agent upsert, idempotency on
+/// `(creator, key)`, the task's thread and one `task.created` event. Returns the task id and whether it was new.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn create_task_tx(
+    tx: &WriteTx<'_>,
+    creator: &corvus_domain::AgentName,
+    title: &str,
+    body: &str,
+    priority: i64,
+    pool: &str,
+    key: Option<&str>,
+    now: i64,
+) -> Result<(String, bool)> {
+    agents::ensure(tx, creator, now)?;
+    if let Some(k) = key
+        && let Some(existing) = tasks::by_idempotency_key(tx, creator.as_str(), k)?
+    {
+        return Ok((existing.id, false));
+    }
+    let id = new_task_id().to_string();
+    let inserted = tasks::insert(
+        tx,
+        &tasks::NewTask {
+            id: &id,
+            title,
+            body,
+            priority,
+            pool,
+            recipient_agent: None,
+            creator: creator.as_str(),
+            idempotency_key: key,
+        },
+        now,
+    )?;
+    if !inserted {
+        let existing = tasks::by_idempotency_key(tx, creator.as_str(), key.unwrap_or_default())?
+            .ok_or_else(|| CorvusError::Internal("idempotent task vanished".into()))?;
+        return Ok((existing.id, false));
+    }
+    let thread = new_thread_id().to_string();
+    threads::insert_for_task(tx, &thread, &id, title, creator.as_str(), now)?;
+    events::insert(
+        tx,
+        EventKind::TaskCreated,
+        &NewEvent {
+            summary: format!("{creator} created task \"{}\" (pool {pool})", clip(title)),
+            agent_name: Some(creator.as_str()),
+            task_id: Some(&id),
+            thread_id: Some(&thread),
+            ..NewEvent::default()
+        },
+        now,
+    )?;
+    Ok((id, true))
+}
+
+/// Appends to an open task's body inside the caller's transaction (no event: the caller records one).
+pub(crate) fn append_tx(tx: &WriteTx<'_>, task_id: &str, addition: &str, now: i64) -> Result<()> {
+    let Some(t) = tasks::get(tx, task_id)? else {
+        return Err(CorvusError::NotFound(format!("task {task_id} not found")));
+    };
+    let joined = if t.body.is_empty() {
+        addition.to_owned()
+    } else {
+        format!("{}\n\n{addition}", t.body)
+    };
+    let body: String = joined.chars().take(MAX_BODY_CHARS).collect();
+    tasks::set_body(tx, task_id, &body, now)
+}

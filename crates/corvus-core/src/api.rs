@@ -621,3 +621,75 @@ pub struct ExportResult {
     pub removed: Vec<String>,
     pub committed: bool,
 }
+
+// ---------- work sources (plan 0008) ----------
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SourceSummary {
+    pub source: corvus_domain::SourceId,
+    pub enabled: bool,
+    pub site: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SyncStats {
+    pub tickets: usize,
+    pub tasks_created: usize,
+    pub comments_delivered: usize,
+    pub followups: usize,
+    pub resumed: usize,
+    pub out_of_scope: usize,
+}
+
+/// `POST /api/sources/{source}/sync`: a failed pass is reported here (and in `last_error`), not as an HTTP error.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SyncResult {
+    pub ok: bool,
+    pub stats: Option<SyncStats>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SourceTicketView {
+    pub key: String,
+    pub project: String,
+    pub summary: String,
+    pub status: String,
+    pub status_category: corvus_domain::StatusCategory,
+    pub priority: i64,
+    /// `https:` only (empty otherwise); the dashboard opens it in the system browser.
+    pub url: String,
+    pub resolved_at: Option<Timestamp>,
+    pub assignee: Option<String>,
+    /// A rule covers this ticket.
+    pub auto_queue: bool,
+    /// The live link was queued by hand.
+    pub manual: bool,
+    pub task_id: Option<String>,
+    pub task_status: Option<TaskStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SourceView {
+    pub source: corvus_domain::SourceId,
+    pub enabled: bool,
+    pub site: Option<String>,
+    pub filter: Option<corvus_domain::SourceFilter>,
+    pub tickets: Vec<SourceTicketView>,
+    pub known_statuses: Vec<String>,
+    pub last_sync_at: Option<Timestamp>,
+    pub last_stats: Option<SyncStats>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
+#[serde(deny_unknown_fields)]
+pub struct QueueTicket {
+    pub key: String,
+}

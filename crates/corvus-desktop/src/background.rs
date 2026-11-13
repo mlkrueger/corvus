@@ -1,12 +1,15 @@
-//! Pausable background work: the housekeeping loop (and, later, tracker polling) under the leader lock.
+//! Pausable background work: the housekeeping loop and tracker polling, under the leader lock.
 //! Pausing stops the loop and so drops leadership; resuming starts a fresh one.
 
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use corvus_core::background::{LoopTimings, run_background};
+use std::sync::Arc;
+
+use corvus_core::background::{LoopTimings, run_background_with_sources};
 use corvus_core::services::Services;
+use corvus_core::sources::Sources;
 use tauri::async_runtime::{self, JoinHandle};
 use tokio::sync::watch;
 
@@ -23,15 +26,22 @@ struct Running {
 pub struct Background {
     services: Services,
     state_dir: PathBuf,
+    sources: Option<Arc<Sources>>,
     inner: Mutex<Running>,
 }
 
 impl Background {
     /// Not started; call [`Background::set_paused`] with `false` to start.
     pub fn new(services: Services, state_dir: PathBuf) -> Self {
+        Self::with_sources(services, state_dir, None)
+    }
+
+    /// Also polls these work sources while this process is the leader.
+    pub fn with_sources(services: Services, state_dir: PathBuf, sources: Option<Arc<Sources>>) -> Self {
         Self {
             services,
             state_dir,
+            sources,
             inner: Mutex::new(Running {
                 stop: None,
                 handle: None,
@@ -64,12 +74,25 @@ impl Background {
         let (tx, rx) = watch::channel(false);
         // A previous loop may still be finishing a pass; wait for it so two loops never overlap.
         let previous = inner.handle.take();
-        let (services, dir) = (self.services.clone(), self.state_dir.clone());
+        let (services, dir, sources) = (
+            self.services.clone(),
+            self.state_dir.clone(),
+            self.sources.clone(),
+        );
         inner.handle = Some(async_runtime::spawn(async move {
             if let Some(prev) = previous {
                 let _ = prev.await;
             }
-            run_background(services, dir, "desktop", LoopTimings::default(), rx, |_| {}).await;
+            run_background_with_sources(
+                services,
+                dir,
+                "desktop",
+                LoopTimings::default(),
+                rx,
+                |_| {},
+                sources,
+            )
+            .await;
         }));
         inner.stop = Some(tx);
     }

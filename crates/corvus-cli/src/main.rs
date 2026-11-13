@@ -107,6 +107,12 @@ enum Command {
     Status,
     /// The HTTP API on 127.0.0.1 (requires CORVUS_API_TOKEN).
     Serve,
+    /// Run one Linear sync pass now.
+    #[command(name = "linear-sync")]
+    LinearSync,
+    /// Run one Jira sync pass now.
+    #[command(name = "jira-sync")]
+    JiraSync,
     /// Administrative commands.
     Admin {
         #[command(subcommand)]
@@ -422,6 +428,8 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         Command::Up => stack::up(&config),
         Command::Down => stack::down(&config),
         Command::Status => stack::status(&config),
+        Command::LinearSync => source_sync(&config, corvus_domain::SourceId::Linear),
+        Command::JiraSync => source_sync(&config, corvus_domain::SourceId::Jira),
         Command::Mcp => {
             let (corvus, _) = corvus_core::Corvus::open(&config)?;
             runtime()?.block_on(corvus_mcp::run_stdio(corvus, config.agent_name.clone()))?;
@@ -434,7 +442,7 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
                 )
             })?;
             let token = corvus_http::ApiToken::new(token.expose())?;
-            let (corvus, _) = corvus_core::Corvus::open(&config)?;
+            let corvus = open_with_sources(&config)?;
             runtime()?.block_on(serve_with_background(corvus, token, &config))?;
             Ok(Value::Null)
         }
@@ -567,6 +575,32 @@ fn task_cmd(s: &Services, config: &Config, c: TaskCommand) -> Result<Value, Corv
     }
 }
 
+/// The facade with every configured work source (Linear, Jira).
+fn open_with_sources(config: &Config) -> Result<corvus_core::Corvus, CorvusError> {
+    let (corvus, _) = corvus_core::Corvus::open(config)?;
+    let sources: Vec<_> = [
+        corvus_linear::from_config(config)?,
+        corvus_jira::from_config(config)?,
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    Ok(corvus.with_sources(config.state_dir.clone(), sources))
+}
+
+fn source_sync(config: &Config, id: corvus_domain::SourceId) -> Result<Value, CorvusError> {
+    let corvus = open_with_sources(config)?;
+    let r = runtime()?.block_on(async move { corvus.sources().sync(id).await })?;
+    if !r.ok {
+        return Err(CorvusError::Internal(format!(
+            "{} sync failed: {}",
+            id.title(),
+            r.error.unwrap_or_default()
+        )));
+    }
+    serde_json::to_value(r).map_err(|e| CorvusError::Internal(e.to_string()))
+}
+
 /// The HTTP API plus the background loops (as a leader candidate) until SIGINT/SIGTERM; then stop the loops
 /// and checkpoint the WAL.
 async fn serve_with_background(
@@ -574,15 +608,16 @@ async fn serve_with_background(
     token: corvus_http::ApiToken,
     config: &Config,
 ) -> Result<(), CorvusError> {
-    use corvus_core::background::{LoopTimings, checkpoint, run_background};
+    use corvus_core::background::{LoopTimings, checkpoint, run_background_with_sources};
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
-    let background = tokio::spawn(run_background(
+    let background = tokio::spawn(run_background_with_sources(
         corvus.services().clone(),
         config.state_dir.clone(),
         "serve",
         LoopTimings::default(),
         stop_rx.clone(),
         |_| {},
+        Some(corvus.sources().clone()),
     ));
     let mut http_stop = stop_rx;
     let signal = tokio::spawn(async move {

@@ -14,12 +14,14 @@ use crate::config::Config;
 use crate::db::{Database, MigrationReport};
 use crate::hermod::{Hermod, wait_for_inbox};
 use crate::services::Services;
+use crate::sources::{Sources, WorkSource};
 
 /// One per process. Cheap to clone.
 #[derive(Debug, Clone)]
 pub struct Corvus {
     services: Services,
     hermod: Hermod,
+    sources: Arc<Sources>,
 }
 
 impl Corvus {
@@ -29,11 +31,36 @@ impl Corvus {
         let (db, report) = Database::open(&config.database_path, clock.as_ref())?;
         let services = Services::from_config(Arc::new(db), clock, config);
         let hermod = Hermod::new(&config.database_path);
-        Ok((Self { services, hermod }, report))
+        let sources = Arc::new(Sources::none(services.clone(), config.state_dir.clone()));
+        Ok((
+            Self {
+                services,
+                hermod,
+                sources,
+            },
+            report,
+        ))
     }
 
+    /// A facade with no work sources configured.
     pub fn new(services: Services, hermod: Hermod) -> Self {
-        Self { services, hermod }
+        let state_dir = std::env::temp_dir();
+        let sources = Arc::new(Sources::none(services.clone(), state_dir));
+        Self {
+            services,
+            hermod,
+            sources,
+        }
+    }
+
+    /// The same facade with these work sources (built by the binaries from the adapter crates).
+    pub fn with_sources(mut self, state_dir: std::path::PathBuf, sources: Vec<Arc<dyn WorkSource>>) -> Self {
+        self.sources = Arc::new(Sources::new(self.services.clone(), state_dir, sources));
+        self
+    }
+
+    pub fn sources(&self) -> &Arc<Sources> {
+        &self.sources
     }
 
     pub fn services(&self) -> &Services {

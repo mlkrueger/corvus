@@ -4,6 +4,9 @@ import type { Transport } from './lib/api';
 import type { MessageListItem } from './lib/types/MessageListItem';
 import type { Overview } from './lib/types/Overview';
 import type { OverviewSession } from './lib/types/OverviewSession';
+import type { SourceId } from './lib/types/SourceId';
+import type { SourceTicketView } from './lib/types/SourceTicketView';
+import type { SourceView } from './lib/types/SourceView';
 import type { TaskView } from './lib/types/TaskView';
 
 export const NOW = Date.parse('2026-11-13T12:00:00.000Z');
@@ -149,6 +152,46 @@ export function overview(over: Partial<Overview> = {}): Overview {
         created_at: iso(-900),
       },
     ],
+    ...over,
+  };
+}
+
+export function ticket(over: Partial<SourceTicketView> = {}): SourceTicketView {
+  return {
+    key: 'AA-1',
+    project: 'AA',
+    summary: 'Fix the login bug',
+    status: 'To Do',
+    status_category: 'todo',
+    priority: 2,
+    url: 'https://example.atlassian.net/browse/AA-1',
+    resolved_at: null,
+    assignee: 'me',
+    auto_queue: false,
+    manual: false,
+    task_id: null,
+    task_status: null,
+    ...over,
+  };
+}
+
+/** The Jira default filter (system/07a): four statuses, 7 days, all projects, one rule for project AA. */
+export function sourceView(source: SourceId = 'jira', over: Partial<SourceView> = {}): SourceView {
+  return {
+    source,
+    enabled: true,
+    site: source === 'jira' ? 'example.atlassian.net' : 'linear.app',
+    filter: {
+      statuses: ['Backlog', 'To Do', 'In Progress', 'Waiting for response'],
+      done_days: 7,
+      projects: [],
+      auto_queue: [{ projects: ['AA'], statuses: ['To Do', 'In Progress'] }],
+    },
+    tickets: [],
+    known_statuses: ['Backlog', 'To Do', 'In Progress', 'In Review', 'Waiting for response', 'Done'],
+    last_sync_at: iso(-120),
+    last_stats: { tickets: 0, tasks_created: 0, comments_delivered: 0, followups: 0, resumed: 0, out_of_scope: 0 },
+    last_error: null,
     ...over,
   };
 }

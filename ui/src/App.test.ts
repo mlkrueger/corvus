@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import App from './App.svelte';
-import { fakeTransport, message, overview } from './fixtures';
+import { fakeTransport, message, overview, sourceView, ticket } from './fixtures';
 import { setTransport } from './lib/api';
 
 let restore: () => void = () => {};
@@ -20,6 +20,44 @@ function boot() {
   restore = setTransport(t.transport);
   return t;
 }
+
+describe('App sources panel', () => {
+  it('is absent when no source is enabled and appears (polled) when one is', async () => {
+    const t = fakeTransport({
+      'GET /api/overview': overview(),
+      'GET /api/messages': [],
+      'GET /api/sources/jira': sourceView('jira', { tickets: [ticket({ key: 'AA-9' })] }),
+      'GET /api/sources': [
+        { source: 'linear', enabled: false, site: null },
+        { source: 'jira', enabled: true, site: null },
+      ],
+    });
+    restore = setTransport(t.transport);
+    render(App);
+    expect(await screen.findByText('AA-9')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sources' })).toBeInTheDocument();
+    const paths = t.api().map((c) => `${c.method} ${c.path}`);
+    expect(paths).toContain('GET /api/sources/jira');
+    expect(paths).not.toContain('GET /api/sources/linear');
+  });
+
+  it('shows nothing when GET /api/sources reports nothing enabled', async () => {
+    const t = fakeTransport({
+      'GET /api/overview': overview(),
+      'GET /api/messages': [],
+      'GET /api/sources': [
+        { source: 'linear', enabled: false, site: null },
+        { source: 'jira', enabled: false, site: null },
+      ],
+    });
+    restore = setTransport(t.transport);
+    render(App);
+    await screen.findByText('Agents & sessions');
+    await waitFor(() => expect(t.api().some((c) => c.path === '/api/sources')).toBe(true));
+    expect(screen.queryByRole('heading', { name: 'Sources' })).toBeNull();
+    expect(t.api().some((c) => c.path?.startsWith('/api/sources/'))).toBe(false);
+  });
+});
 
 describe('App', () => {
   it('polls overview and messages and renders every panel', async () => {

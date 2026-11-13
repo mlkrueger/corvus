@@ -116,7 +116,8 @@ input[type='text'] { width: 100%; }
   grid-template-areas:
     'sessions activity'
     'messages decisions'
-    'tasks tasks';
+    'tasks tasks'
+    'sources sources';
   gap: 12px;
   align-items: start;
 }
@@ -125,11 +126,12 @@ input[type='text'] { width: 100%; }
 .area-messages { grid-area: messages; min-width: 0; }
 .area-decisions { grid-area: decisions; min-width: 0; }
 .area-tasks { grid-area: tasks; min-width: 0; }
+.area-sources { grid-area: sources; min-width: 0; }
 
 @media (max-width: 720px) {
   .grid {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'sessions' 'messages' 'tasks' 'activity' 'decisions';
+    grid-template-areas: 'sessions' 'messages' 'tasks' 'sources' 'activity' 'decisions';
   }
   .app { padding: 8px; }
 }
@@ -206,3 +208,18 @@ input[type='text'] { width: 100%; }
   font-size: 12px;
 }
 code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+
+.tabs { display: flex; gap: 4px; }
+.tab[aria-selected='true'] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.source-bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 8px; }
+.board.source-board { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); }
+.ticket-key { font-family: ui-monospace, monospace; font-size: 12px; margin-right: 6px; }
+a.ticket-key { color: var(--accent); }
+.badge.task-open, .badge.task-claimed { border-color: var(--accent); color: var(--accent); }
+.badge.task-done { border-color: var(--ok); color: var(--ok); }
+.badge.task-cancelled { color: var(--muted); }
+.filter-form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); max-width: 640px; }
+.field { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.field.narrow input { max-width: 8em; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; }
+.hint { margin: 0; font-size: 12px; }

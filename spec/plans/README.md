@@ -19,8 +19,8 @@ A plan says what gets built, in what order, and how it is verified. Lasting desi
 | [0005](0005-housekeeping.md) | Housekeeping loop and background leader | Done | 0004 |
 | [0006](0006-dashboard-and-desktop.md) | Dashboard (Svelte) and self-contained desktop app (Tauri 2) | In progress | 0004, 0005 |
 | [0007](0007-delivery-helpers.md) | Delivery helpers: hook, wake supervisor, agent adapters, stack commands | In progress | 0004 |
-| [0008](0008-work-sources-and-linear.md) | Work-source engine + Linear adapter | Ready | 0005, 0006 (panel) |
-| [0009](0009-jira-source.md) | Jira adapter | Ready | 0008 |
+| [0008](0008-work-sources-and-linear.md) | Work-source engine + Linear adapter | Done | 0005, 0006 (panel) |
+| [0009](0009-jira-source.md) | Jira adapter | Done | 0008 |
 | [0010](0010-docs-and-release.md) | Docs, `DECISIONS.md`, full verification, honest report | Ready | all |
 | [0011](0011-distribution.md) | Distribution: release binaries and the desktop bundle | Ready | 0006, 0007 |
 

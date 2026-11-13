@@ -16,8 +16,13 @@ use serde::Serialize;
 use tokio::sync::watch;
 use tokio::time::MissedTickBehavior;
 
+use std::sync::Arc;
+
+use corvus_domain::SourceId;
+
 use crate::clock::format_rfc3339;
 use crate::services::Services;
+use crate::sources::Sources;
 use crate::store::hints;
 
 /// Hint retention ([defaults #13](../../../spec/system/11-defaults.md)).
@@ -221,8 +226,50 @@ pub async fn run_background(
     state_dir: PathBuf,
     kind: &'static str,
     timings: LoopTimings,
+    shutdown: watch::Receiver<bool>,
+    on_pass: impl Fn(&PassReport) + Send + 'static,
+) {
+    run_background_with_sources(services, state_dir, kind, timings, shutdown, on_pass, None).await;
+}
+
+/// One poll loop per enabled source, for as long as this process is the leader: a pass after `first`, then every
+/// source's own interval. A failed pass is logged and the loop continues (P8).
+async fn poll_source(
+    sources: Arc<Sources>,
+    id: SourceId,
+    first: Duration,
+    every: Duration,
+    mut stop: watch::Receiver<bool>,
+) {
+    let mut next = tokio::time::Instant::now() + first;
+    loop {
+        tokio::select! {
+            () = tokio::time::sleep_until(next) => {}
+            changed = stop.changed() => if changed.is_err() || *stop.borrow() { return; }
+        }
+        if *stop.borrow() {
+            return;
+        }
+        match sources.sync(id).await {
+            Ok(r) if r.ok => tracing::info!(source = id.as_str(), stats = ?r.stats, "source sync"),
+            Ok(r) => tracing::warn!(source = id.as_str(), error = ?r.error, "source sync failed; will retry"),
+            Err(e) => {
+                tracing::warn!(source = id.as_str(), error = %e, "source sync could not run; will retry")
+            }
+        }
+        next = tokio::time::Instant::now() + every;
+    }
+}
+
+/// [`run_background`] plus the work-source poll loops, which also run only in the leader.
+pub async fn run_background_with_sources(
+    services: Services,
+    state_dir: PathBuf,
+    kind: &'static str,
+    timings: LoopTimings,
     mut shutdown: watch::Receiver<bool>,
     on_pass: impl Fn(&PassReport) + Send + 'static,
+    sources: Option<Arc<Sources>>,
 ) {
     let leader = loop {
         if *shutdown.borrow() {
@@ -249,6 +296,23 @@ pub async fn run_background(
         }
     };
 
+    let polls: Vec<tokio::task::JoinHandle<()>> = sources
+        .map(|s| {
+            s.enabled()
+                .into_iter()
+                .map(|src| {
+                    let every = src.poll_interval();
+                    tokio::spawn(poll_source(
+                        s.clone(),
+                        src.id(),
+                        timings.first_pass,
+                        every,
+                        shutdown.clone(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut ticks =
         tokio::time::interval_at(tokio::time::Instant::now() + timings.first_pass, timings.interval);
     ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -273,6 +337,9 @@ pub async fn run_background(
             }
             Err(e) => tracing::error!(error = %e, "housekeeping pass task failed; continuing"),
         }
+    }
+    for p in polls {
+        p.abort();
     }
     drop(leader);
 }

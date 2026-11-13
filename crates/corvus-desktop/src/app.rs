@@ -94,9 +94,21 @@ pub fn run(context: tauri::Context<Wry>) {
     }
     let (corvus, _report) =
         Corvus::open(&config).unwrap_or_else(|e| fail(&format!("cannot open the database: {e}")));
+    let sources: Vec<_> = [
+        corvus_linear::from_config(&config),
+        corvus_jira::from_config(&config),
+    ]
+    .into_iter()
+    .filter_map(|r| r.unwrap_or_else(|e| fail(&format!("work source configuration: {e}"))))
+    .collect();
+    let corvus = corvus.with_sources(config.state_dir.clone(), sources);
     let state = AppState {
         router: corvus_http::data_router(corvus.clone()),
-        background: Background::new(corvus.services().clone(), config.state_dir.clone()),
+        background: Background::with_sources(
+            corvus.services().clone(),
+            config.state_dir.clone(),
+            Some(corvus.sources().clone()),
+        ),
         corvus,
         pause_item: OnceLock::new(),
     };
