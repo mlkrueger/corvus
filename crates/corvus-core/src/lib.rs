@@ -6,6 +6,7 @@ pub mod background;
 pub mod clock;
 pub mod config;
 pub mod db;
+pub mod delivery;
 pub mod envfile;
 pub mod facade;
 pub mod hermod;

@@ -10,6 +10,7 @@ pub mod names;
 pub mod presence;
 pub mod scope;
 pub mod text;
+pub mod wake;
 
 pub use artifact::{ArtifactRef, validate_artifact_path, validate_commit_hash};
 pub use enums::{ArtifactKind, EndReason, EventKind, MessageType, SessionEndReason, TaskStatus};
@@ -21,3 +22,4 @@ pub use names::{generated_name, suffixed_name};
 pub use presence::{Presence, presence};
 pub use scope::{Scope, direct_thread_key, validate_thread_key};
 pub use text::{MAX_BODY_CHARS, validate_message_body, validate_summary, validate_task_body, validate_title};
+pub use wake::{Adapter, BindingPattern, PLACEHOLDERS, RawAdapter, WAKE_NOTE};

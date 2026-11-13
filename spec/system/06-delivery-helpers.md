@@ -9,9 +9,14 @@ none needs a server. Support for a particular agent tool is added through an [ad
 Reads the database directly through a single **read-only** connection. It needs no token, no port and no
 running service, and never writes to the database.
 
-**Contract with Claude Code** (to be re-verified against current Claude Code hook docs at implementation):
+**Contract with Claude Code** (confirmed 2026-11-13 against the Claude Code hooks reference, Claude Code 2.1.323):
 registered for `UserPromptSubmit`, `PostToolUse` and `Stop`; reads the event JSON on stdin (`hook_event_name`,
-`session_id`, `stop_hook_active`); writes JSON on stdout.
+`session_id`, `stop_hook_active`); writes JSON on stdout — `{"hookSpecificOutput": {"hookEventName": …,
+"additionalContext": …}}` for `UserPromptSubmit` and `PostToolUse` (plain stdout reaches the model only for
+`UserPromptSubmit`, so JSON is used for both), `{"decision": "block", "reason": …}` for `Stop`. Empty stdout on
+exit 0 is a no-op; exit 2 is never used. Claude Code moves context over 10,000 characters to a file, so the
+injected text is kept under 9,000. Settings `env` is not documented to reach hooks, so the agent name is set in
+the hook command ([docs](../../docs/delivery-helpers.md)).
 
 | Event | Behaviour |
 |---|---|
@@ -34,7 +39,8 @@ Rules:
   to ~1000 chars with a marker. The sender equal to `CORVUS_OPERATOR_NAME` is shown as "the operator". If more
   than 10 are new, say how many remain. Bodies are framed as quoted peer text, not instructions.
 - **Never fails**: every error path (no database, schema mismatch, busy, bad JSON, unwritable state, panic via
-  `catch_unwind`) exits 0 with empty output. The hook never acks.
+  `catch_unwind`) exits 0 with empty output. The hook never acks. A corrupt state file is reset (silent that
+  once); if the state cannot be saved the hook prints nothing, so it never re-injects the same mail every call.
 - State-file and agent-name components are validated before they are used in a path.
 
 ## Wake supervisor (`corvus watch <agent>`)
@@ -82,7 +88,7 @@ name  = "codex"
 title = "OpenAI Codex CLI"
 
 [binding]                       # what `corvus agent bind` must be given for this tool
-conversation = { required = true, pattern = "uuid" }      # "uuid" or a regular expression
+conversation = { required = true, pattern = "uuid" }      # "uuid" or "chars:<allowed>:<min>-<max>"
 
 [wake]                          # run when the bound agent has new unread messages
 command = ["codex", "exec", "resume", "{conversation}", "{note}"]
@@ -103,7 +109,12 @@ Rules, enforced by the one adapter runner for every tool:
 - Exit 0 = **delivered** (the tool accepted the nudge), not acknowledged. Anything else is a failure and the
   supervisor retries with backoff. A missing tool is a failure with a clear log line.
 - Agent names and binding values are validated (agent-name grammar; the adapter's `pattern`) before use.
-- An adapter file is loaded only if it is owned by the user and not group- or world-writable.
+- An adapter file is loaded only if it is a regular file (not a symlink), owned by the same user as the state
+  directory, and not group- or world-writable; an invalid user adapter is an error, never a silent fall-back to a
+  built-in.
+- Binding patterns are `"uuid"` or `"chars:<allowed>:<min>-<max>"` (a set of allowed characters and a length
+  range) rather than regular expressions: no regex engine in the pure domain crate, and a pattern cannot be
+  written that matches more than intended.
 
 ### Bindings
 

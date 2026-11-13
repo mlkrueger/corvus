@@ -85,6 +85,26 @@ enum Command {
     Mcp,
     /// Launch the desktop app (or focus it if it is running).
     Ui,
+    /// The Claude Code inbox hook: reads the event on stdin, prints context or nothing. Never fails.
+    Hook,
+    /// Wake supervisor: wait for mail for AGENT and wake it (adapter / --exec) or print it (--print).
+    Watch(wake_cmds::WatchArgs),
+    /// Which agent tool each agent runs in (for waking).
+    Agent {
+        #[command(subcommand)]
+        command: wake_cmds::AgentCommand,
+    },
+    /// Agent-tool adapters.
+    Adapter {
+        #[command(subcommand)]
+        command: wake_cmds::AdapterCommand,
+    },
+    /// Start the optional background stack (HTTP API if a token is set, bound watchers).
+    Up,
+    /// Stop the background stack.
+    Down,
+    /// Database, background leader, server and watchers.
+    Status,
     /// The HTTP API on 127.0.0.1 (requires CORVUS_API_TOKEN).
     Serve,
     /// Administrative commands.
@@ -319,7 +339,16 @@ enum AdminCommand {
     },
 }
 
+mod hook;
+mod stack;
+mod wake_cmds;
+
 fn main() -> ExitCode {
+    // The hook takes a fast path: no config errors, no logging, no runtime; it always exits 0.
+    if std::env::args().nth(1).as_deref() == Some("hook") {
+        hook::main();
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     match run(cli) {
         Ok(Value::Null) => ExitCode::SUCCESS,
@@ -386,6 +415,13 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         Command::Bootstrap { agent } => json(services(&config)?.muninn().bootstrap(&agent)),
         Command::Stats => json(services(&config)?.overview().stats()),
         Command::Ui => launch_desktop_app(),
+        Command::Hook => unreachable_hook(),
+        Command::Watch(args) => wake_cmds::watch(&config, args),
+        Command::Agent { command } => wake_cmds::agent(&config, command),
+        Command::Adapter { command } => wake_cmds::adapter(&config, command),
+        Command::Up => stack::up(&config),
+        Command::Down => stack::down(&config),
+        Command::Status => stack::status(&config),
         Command::Mcp => {
             let (corvus, _) = corvus_core::Corvus::open(&config)?;
             runtime()?.block_on(corvus_mcp::run_stdio(corvus, config.agent_name.clone()))?;
@@ -567,6 +603,12 @@ async fn serve_with_background(
         tracing::warn!(error = %e, "WAL checkpoint on shutdown failed");
     }
     served.map_err(|e| CorvusError::Internal(format!("serve: {e}")))
+}
+
+/// `hook` is dispatched in `main` before argument parsing; this arm is never reached.
+fn unreachable_hook() -> Result<Value, CorvusError> {
+    hook::main();
+    Ok(Value::Null)
 }
 
 /// Where the desktop app may be: the macOS app bundle in the usual places, or a `corvus-desktop` executable next

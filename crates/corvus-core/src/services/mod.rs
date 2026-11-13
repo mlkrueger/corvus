@@ -7,7 +7,7 @@ pub mod huginn;
 pub mod muninn;
 pub mod overview;
 pub mod sessions;
-mod views;
+pub(crate) mod views;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

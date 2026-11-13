@@ -1,6 +1,6 @@
 # Plan 0007 — Delivery helpers: hook, wake supervisor, agent adapters, stack commands
 
-- **Status:** Ready
+- **Status:** In progress
 - **Depends on:** [0004](0004-transports.md)
 - **Spec:** [system/06](../system/06-delivery-helpers.md) · brief §4.7
 
@@ -21,73 +21,73 @@ targets; setup docs for registering the hook and binding watchers.
 
 ## Work breakdown
 
-- [ ] 1. Confirm the Claude Code hook contract (event names, stdin fields, stdout JSON for context injection and
+- [x] 1. Confirm the Claude Code hook contract (event names, stdin fields, stdout JSON for context injection and
       for blocking stop) against current docs; adjust [system/06](../system/06-delivery-helpers.md) if needed.
-- [ ] 2. `corvus hook`: fast path (no runtime, throttle before opening the database), read-only open, state
+- [x] 2. `corvus hook`: fast path (no runtime, throttle before opening the database), read-only open, state
       file, formatting, three event behaviours, catch-all silent exit.
-- [ ] 3. `corvus watch`: print mode; exec mode with env/stdin contract, timeout + process-group kill, backoff,
+- [x] 3. `corvus watch`: print mode; exec mode with env/stdin contract, timeout + process-group kill, backoff,
       delivered-set persistence, lock file.
-- [ ] 4. Adapter runner: TOML loading and validation (closed placeholder set, whole-argument rule, ownership
+- [x] 4. Adapter runner: TOML loading and validation (closed placeholder set, whole-argument rule, ownership
       and permission check), embedded built-ins with user override, bindings file, `corvus agent …` and
       `corvus adapter …` commands, adapter mode in `corvus watch`.
-- [ ] 5. Built-in `codex` adapter: confirm the resume command on the installed Codex version (see open
-      questions), write the adapter file, test against a stub `codex`.
-- [ ] 6. `corvus up` / `down` / `status` (idempotent), detached background `serve`, pid and log files, watcher
+- [x] 5. Built-in `codex` adapter: write the adapter file, test against a stub `codex`. (Confirming the resume
+      command on an installed Codex is still open: Codex is not installed on the build machine.)
+- [x] 6. `corvus up` / `down` / `status` (idempotent), detached background `serve`, pid and log files, watcher
       start/stop; Makefile targets.
-- [ ] 7. Docs: hook registration snippet for Claude Code settings; binding walkthrough; "writing an adapter
+- [x] 7. Docs: hook registration snippet for Claude Code settings; binding walkthrough; "writing an adapter
       for a new tool" page with a worked example.
 
 ## Verification
 
 Hook (the real binary via `assert_cmd`, temp database, temp state dir):
-- [ ] injects each message once per (agent, Claude session); a second session gets it again; creates no
+- [x] injects each message once per (agent, Claude session); a second session gets it again; creates no
       receipts and writes nothing to the database (file checksum of tables unchanged; connection is read-only).
-- [ ] ≤ 10 messages per injection with a "more waiting" note; bodies truncated to ~1000 chars; operator shown
+- [x] ≤ 10 messages per injection with a "more waiting" note; bodies truncated to ~1000 chars; operator shown
       as "the operator"; guidance text present.
-- [ ] after-tool throttle: second call within 5 s does not open the database; after 5 s it does.
-- [ ] stop: blocks once with the messages as reason; with `stop_hook_active` true it never blocks.
-- [ ] **never fails:** no database, schema newer or older than the binary, database held by a long writer past
+- [x] after-tool throttle: second call within 5 s does not open the database; after 5 s it does.
+- [x] stop: blocks once with the messages as reason; with `stop_hook_active` true it never blocks.
+- [x] **never fails:** no database, schema newer or older than the binary, database held by a long writer past
       the busy timeout, corrupt state file, unwritable state dir, missing agent name, malformed stdin →
       exit 0, empty stdout, in every case.
-- [ ] **works with no server and no token** in the environment.
-- [ ] **fast:** p95 wall time under the stated budget on the throttle path and the read path (measured in CI
+- [x] **works with no server and no token** in the environment.
+- [x] **fast:** p95 wall time under the stated budget on the throttle path and the read path (measured in CI
       with generous slack; regression guard, not a benchmark).
-- [ ] hostile agent name / session id cannot escape the state directory.
+- [x] hostile agent name / session id cannot escape the state directory.
 
 Wake supervisor (temp database, stub commands, paused time where possible):
-- [ ] print mode prints and exits when mail exists; blocks otherwise; wakes when another process posts.
-- [ ] exec mode passes agent, state dir and messages JSON; exit 0 marks delivered; no ack happens.
-- [ ] failure → retries the same batch with 1, 2, 4 … s backoff capped at 300 s; success resets it.
-- [ ] timeout kills the command (and its children) and counts as failure.
-- [ ] dedupe by id set: an older id that appears after a newer one was delivered is still delivered.
-- [ ] restart: delivered set survives; messages that arrived while down are delivered; a simulated crash before
+- [x] print mode prints and exits when mail exists; blocks otherwise; wakes when another process posts.
+- [x] exec mode passes agent, state dir and messages JSON; exit 0 marks delivered; no ack happens.
+- [x] failure → retries the same batch with 1, 2, 4 … s backoff capped at 300 s; success resets it.
+- [x] timeout kills the command (and its children) and counts as failure.
+- [x] dedupe by id set: an older id that appears after a newer one was delivered is still delivered.
+- [x] restart: delivered set survives; messages that arrived while down are delivered; a simulated crash before
       persisting re-delivers (documented duplicate).
-- [ ] second watcher for the same agent exits with a clear error; different agents coexist.
+- [x] second watcher for the same agent exits with a clear error; different agents coexist.
 
 Adapters:
-- [ ] an adapter with an unknown placeholder, a placeholder embedded inside an argument, a missing command, or
+- [x] an adapter with an unknown placeholder, a placeholder embedded inside an argument, a missing command, or
       bad permissions/ownership is rejected at load with a clear message.
-- [ ] a user adapter overrides a built-in of the same name; `adapter list/show/check` report correctly;
+- [x] a user adapter overrides a built-in of the same name; `adapter list/show/check` report correctly;
       `check` distinguishes "tool not installed".
-- [ ] bind validates the agent name and the adapter's binding pattern; one binding per agent; `--force` re-binds.
-- [ ] **no message text can reach a tool:** with messages whose bodies contain instructions, the stub tool's
+- [x] bind validates the agent name and the adapter's binding pattern; one binding per agent; `--force` re-binds.
+- [x] **no message text can reach a tool:** with messages whose bodies contain instructions, the stub tool's
       arguments, stdin and environment contain only the fixed note (asserted for the built-in `codex` adapter
       and for a throwaway test adapter).
-- [ ] adapter mode in `corvus watch`: exit 0 → delivered; failure/timeout → backoff; missing tool → failure.
-- [ ] **a new tool needs no rebuild:** a test drops a new adapter file for an invented tool into the state
+- [x] adapter mode in `corvus watch`: exit 0 → delivered; failure/timeout → backoff; missing tool → failure.
+- [x] **a new tool needs no rebuild:** a test drops a new adapter file for an invented tool into the state
       directory, binds an agent to it, and the watcher wakes it through a stub.
 
 Stack commands:
-- [ ] `up` without a token starts watchers only and says the HTTP API is disabled; with a token it starts
+- [x] `up` without a token starts watchers only and says the HTTP API is disabled; with a token it starts
       `serve` detached and waits for health; `status` reports database, leader, server, watchers; `down` stops
       them; `up` twice is a no-op; stale pid files are handled.
 - [ ] by hand: real Claude Code session receives a peer message via the hook; real stop-block happens once.
 
 ## Exit criteria
 
-- [ ] `make lint` and `make test` pass.
+- [x] `make lint` and `make test` pass.
 - [ ] The by-hand check is recorded below with a date.
-- [ ] No shell script is required at run time.
+- [x] No shell script is required at run time.
 
 ## Open questions
 
@@ -101,7 +101,25 @@ Stack commands:
 
 ## Unverified / deferred
 
-—
+- **By hand with real Claude Code — not done.** The hook is verified through the real binary against the
+  confirmed contract (stdin event JSON → `hookSpecificOutput.additionalContext` / `decision: block`), but no
+  real Claude Code session has run it yet. To do and record here with a date: register the hook from
+  [docs/delivery-helpers.md](../../docs/delivery-helpers.md), `corvus tell <agent> …`, submit a prompt → the
+  message appears as context; let Claude finish → one stop-block, then it stops.
+- **Codex not confirmed.** Codex is not installed on the build machine, so `codex exec resume <id> "<note>"`,
+  its behaviour with the same conversation open in an interactive window, and its sandbox/approval settings for
+  a headless turn are unverified. The built-in adapter is tested against a stub `codex` only.
+- Adapter files owned by another user are unit-tested against a fake owner id (changing ownership needs root).
+- Watcher timing tests use real short intervals (processes and file locks cannot run on paused tokio time).
+
+## Notes from implementation
+
+- Step 1 result (hook contract) is recorded in [system/06](../system/06-delivery-helpers.md#inbox-hook-corvus-hook).
+- `corvus watch` takes `--exec` last (it consumes the rest of the line); `--timeout` also overrides an
+  adapter's own timeout. Adapter mode writes no batch file and passes no stdin or `CORVUS_WAKE_*` variables.
+- `corvus status` reports a watcher as running when it holds `watch/<agent>/lock` (the lock is the proof, not
+  a pid file).
+- New dependency: `toml` (compile time only).
 
 ## Decisions
 

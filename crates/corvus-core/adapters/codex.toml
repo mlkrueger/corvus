@@ -1,0 +1,12 @@
+name  = "codex"
+title = "OpenAI Codex CLI"
+
+[binding]
+conversation = { required = true, pattern = "uuid" }
+
+[wake]
+command = ["codex", "exec", "resume", "{conversation}", "{note}"]
+timeout_seconds = 300
+
+[check]
+command = ["codex", "--version"]
