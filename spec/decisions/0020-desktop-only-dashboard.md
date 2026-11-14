@@ -80,3 +80,5 @@ existed for the browser?
   their architecture and framework choices forward and removing the browser host. Interpretation to confirm:
   the HTTP API was kept as an opt-in programmatic interface, since the direction was about the UI.
   The `fragments: 'tree'` option is from memory of the Svelte 5 compiler options and has not been exercised.
+- 2026-11-14 — "The app never opens a socket" is narrowed to "never opens a network listener" by
+  [D0022](0022-desktop-single-instance-local-socket.md): the single-instance guard's local rendezvous stays.

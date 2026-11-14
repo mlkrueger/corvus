@@ -99,7 +99,7 @@ Violations are bugs.
 - Rust stable, edition 2024. `cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings`, and
   `cargo test --workspace` must pass before work is called done. The test suite needs no services.
 - Frontend (`ui/`): Svelte 5 **runes** (`$state`, `$derived`, `$effect`), TypeScript, Vite. No Svelte 4 patterns.
-  The dashboard ships only inside the desktop app: no browser UI, no `/ui` route, no listener in the app.
+  The dashboard ships only inside the desktop app: no browser UI, no `/ui` route, no network listener in the app.
   Generated TypeScript types are committed; regenerate them when the Rust API types change.
 - If a container is ever needed for development (for example a clean-machine smoke test): **`podman`**, never
   `docker`. Python, if ever needed for scripts: **`uv`**, never `pip`. Neither may become a product dependency.

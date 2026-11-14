@@ -76,7 +76,7 @@ Each follows from owner direction (self-contained binary, no containers) and is 
 | Stack scripts "start storage", start the server | `corvus up / down / status` subcommands; storage is a file | [D0015](../decisions/0015-process-topology-single-binary.md) |
 | A launcher script loads secrets for the MCP server | The binary loads the env file itself; MCP needs no secrets at all | [D0015](../decisions/0015-process-topology-single-binary.md) |
 | Inbox hook is a "tiny program" | A subcommand of the one binary, reading the database directly | [D0015](../decisions/0015-process-topology-single-binary.md) |
-| The server refuses to start without a token | True for `corvus serve`. The desktop app needs no token and never opens a listener | [D0020](../decisions/0020-desktop-only-dashboard.md) |
+| The server refuses to start without a token | True for `corvus serve`. The desktop app needs no token and never opens a network listener | [D0020](../decisions/0020-desktop-only-dashboard.md) |
 | Dashboard is a static page served at `/ui`, with token-in-fragment sign-in, a paste-token gate and sign-out | Not built. The dashboard is the desktop app only, over IPC; there is nothing to sign in to | [D0020](../decisions/0020-desktop-only-dashboard.md) |
 | Bearer token on everything except the static dashboard shell | Bearer token on every HTTP route; there is no shell route | [D0020](../decisions/0020-desktop-only-dashboard.md) |
 | `corvus ui` opens the dashboard signed in | `corvus ui` launches the desktop app | [D0020](../decisions/0020-desktop-only-dashboard.md) |

@@ -127,17 +127,22 @@ horizontally when narrow.
   and is a normal Corvus process ([01](01-architecture.md#processes)).
 - **UI over IPC.** One Tauri command, `api(method, path, body) → {status, body}`, builds a request in memory and
   calls `data_router()` from `corvus-http` with `tower::ServiceExt::oneshot`. No socket is involved.
-- **No listener, ever.** The app never binds a port, whether or not a token is configured. The HTTP API is
-  served only by `corvus serve` ([04](04-interfaces.md#http-api)).
+- **No network listener, ever.** The app never binds a TCP or UDP port, whether or not a token is configured.
+  The HTTP API is served only by `corvus serve` ([04](04-interfaces.md#http-api)). The single-instance guard's
+  local rendezvous (below) is the one exception, and it carries no data ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).
 - **Background work.** While running, the app competes for the background-leader lock and, when it holds it,
   runs housekeeping and tracker polling ([10](10-config-ops.md#background-leader)).
 - **Window and tray.** Closing the window hides it; the app stays in the tray so background work continues.
   Tray menu: Open, Pause/Resume background work, Quit. After Quit, agents keep working against the database.
+  On macOS the tray icon is a monochrome template image in the menu bar, and while the window is hidden the app
+  leaves the Dock and the app switcher (it returns on Open or relaunch).
 - **Connect an agent.** A help view lists the available adapters (and whether each tool is installed) and shows the MCP and hook configuration snippets with the real path of the
   bundled `corvus` binary, and an "Install command-line tool" action that links it into the user's `PATH`
   (`~/.local/bin`; never needs elevated rights).
 - **Single instance.** A second launch focuses the existing window. `corvus ui` does the same from a terminal
-  ([04](04-interfaces.md#cli-corvus)).
+  ([04](04-interfaces.md#cli-corvus)). The rendezvous is a Unix-domain socket in `/tmp` on macOS and a D-Bus
+  session name on Linux; the callback ignores the caller's arguments and only shows the window
+  ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).
 - **Isolation**:
   - IPC capabilities are limited to `api` plus a few app commands (`app_info`, `install_cli`,
     `set_background_paused`). No shell, filesystem, HTTP-client or opener plugin is exposed to the page.

@@ -69,7 +69,7 @@ In short:
 - The hook needs `CORVUS_AGENT_NAME`; duplicate delivery by the wake supervisor after a crash is possible.
 - Tracker removals do not cancel tasks, and nothing is written back to Linear or Jira.
 - No browser dashboard; a headless machine has the CLI and the HTTP API.
-- The desktop app's single-instance guard uses a Unix-domain socket in `/tmp` (no network port).
+- On macOS the desktop app's single-instance socket has a fixed path in shared `/tmp`; on a multi-user Mac another account can squat it ([D0022](../spec/decisions/0022-desktop-single-instance-local-socket.md)).
 - Not verified against real services or on other platforms: a real Claude Code session using the hook, Codex,
   Linear and Jira accounts, Linux desktop (WebKitGTK), macOS signing — see the plans' "Unverified" sections and
   the final report.

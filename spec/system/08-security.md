@@ -39,7 +39,7 @@ token-less mode.
 | Threat | Control |
 |---|---|
 | Remote network access | The listener is opt-in and binds `127.0.0.1` only. The bind address is not configurable. |
-| Local process or web page calling the API | Bearer token on every data route. `corvus serve` refuses to start if the token is unset or shorter than 32 characters. No route is exempt. The desktop app never opens a listener. |
+| Local process or web page calling the API | Bearer token on every data route. `corvus serve` refuses to start if the token is unset or shorter than 32 characters. No route is exempt. The desktop app never opens a network listener ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)). |
 | Token guessing by timing | Compare SHA-256 digests of presented and expected tokens with `subtle::ConstantTimeEq`. The token type has no `PartialEq`. |
 | DNS rebinding | `Host` must be `127.0.0.1`, `localhost` or `[::1]` (with the configured port or none); otherwise `403` before auth. |
 | Cross-site requests from a browser | No CORS headers are ever sent, so cross-origin reads and preflights fail; the token is a header, never a cookie. |

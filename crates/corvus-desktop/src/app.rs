@@ -63,6 +63,7 @@ fn apply_paused(app: &AppHandle, paused: bool) {
 }
 
 fn show_main<R: Runtime>(app: &AppHandle<R>) {
+    set_dock_visible(app, true);
     if let Some(w) = app.get_webview_window(MAIN) {
         let _ = w.show();
         let _ = w.unminimize();
@@ -77,6 +78,24 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
     {
         api.prevent_close();
         let _ = window.hide();
+        set_dock_visible(window.app_handle(), false);
+    }
+}
+
+/// macOS: while the window is hidden the app lives only in the menu bar, so it leaves the Dock and the
+/// app switcher; it returns when the window is shown. Other platforms have no Dock.
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+fn set_dock_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let policy = if visible {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        };
+        if let Err(e) = app.set_activation_policy(policy) {
+            tracing::warn!(error = %e, "cannot change the Dock visibility");
+        }
     }
 }
 
@@ -171,7 +190,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&open, &pause, &PredefinedMenuItem::separator(app)?, &quit])?;
     let _ = app.state::<AppState>().pause_item.set(pause);
     TrayIconBuilder::new()
-        .icon(Image::from_bytes(include_bytes!("../icons/icon.png"))?)
+        // A monochrome template image: macOS tints it for the light or dark menu bar.
+        .icon(Image::from_bytes(include_bytes!("../icons/tray-template.png"))?)
+        .icon_as_template(true)
         .tooltip("Corvus")
         .menu(&menu)
         .show_menu_on_left_click(true)

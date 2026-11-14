@@ -85,7 +85,7 @@ Every Corvus process opens the database file itself ([D0015](../decisions/0015-p
 | `corvus hook` | one-shot, milliseconds | **read-only** | — |
 | `corvus watch <agent>` | long-running, one per agent | read/write | — |
 | `corvus serve` | long-running, headless; **will not start without a token** | read/write | the way to run Corvus's background work without the desktop app; HTTP API (programmatic); background-leader candidate |
-| Corvus desktop app | interactive, stays in the tray | read/write | the dashboard, over IPC; background-leader candidate; never opens a socket |
+| Corvus desktop app | interactive, stays in the tray | read/write | the dashboard, over IPC; background-leader candidate; never opens a network listener ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)) |
 | Scripts and other tools | any | — (HTTP API, via `corvus serve`) | — |
 
 Consequences worth knowing:
@@ -158,5 +158,5 @@ macOS release artifacts are code-signed with the owner's personal signing identi
 - There is no dashboard without the desktop app; a headless machine has the CLI and the HTTP API.
 - The desktop app's window behaviour is verified by unit tests on its guards plus a manual checklist.
 - The database must live on a local filesystem; network filesystems are unsupported.
-- The desktop app's single-instance guard listens on a Unix-domain socket in `/tmp` (no network port); see
-  [plan 0006](../plans/0006-dashboard-and-desktop.md#unverified--deferred).
+- On macOS the desktop app's single-instance socket has a fixed path in shared `/tmp`; on a multi-user Mac,
+  another account can squat it and stop the app from starting ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).

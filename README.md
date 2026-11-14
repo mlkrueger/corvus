@@ -57,7 +57,7 @@ agent (Codex built in; other tools via a small adapter file).
 Open the desktop app (`corvus ui` launches it). It shows sessions and presence, the task board, messages
 (compose as the operator, reply, never marks anything read), activity, decisions, and — when configured — the
 Linear and Jira boards. It needs no server, token or port: it is a normal Corvus process with the dashboard
-inside it, and it never opens a listening socket.
+inside it, and it never opens a network port.
 
 ## When do I need `corvus serve`?
 

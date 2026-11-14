@@ -54,7 +54,7 @@ Every row must have at least one test that has actually been run. The owning pla
 | Unread / ack / unresolved-question semantics; direct-thread pairing | [0003](../plans/0003-muninn-hermod.md) |
 | wait-for-inbox wake-ups (same and cross process), timeouts, lost-hint tolerance | [0003](../plans/0003-muninn-hermod.md) |
 | Export contents and path safety | [0003](../plans/0003-muninn-hermod.md) |
-| Auth on every HTTP route (none exempt); token compared safely; host allow-list; IPC seam; app opens no socket | [0004](../plans/0004-transports.md), [0006](../plans/0006-dashboard-and-desktop.md) |
+| Auth on every HTTP route (none exempt); token compared safely; host allow-list; IPC seam; app opens no network listener | [0004](../plans/0004-transports.md), [0006](../plans/0006-dashboard-and-desktop.md) |
 | Housekeeping isolation; background leader hand-over | [0005](../plans/0005-housekeeping.md) |
 | Dashboard bundle has no data and no untrusted-markup sinks; hostile text renders literally | [0006](../plans/0006-dashboard-and-desktop.md) |
 | Hook dedupe / throttle / stop-loop protection / never fails | [0007](../plans/0007-delivery-helpers.md) |

@@ -17,8 +17,8 @@ A plan says what gets built, in what order, and how it is verified. Lasting desi
 | [0003](0003-muninn-hermod.md) | Muninn + Hermod: messaging, memory, export, wake-ups | Done | 0002 |
 | [0004](0004-transports.md) | Transports: CLI, MCP server, HTTP API | Done | 0003 |
 | [0005](0005-housekeeping.md) | Housekeeping loop and background leader | Done | 0004 |
-| [0006](0006-dashboard-and-desktop.md) | Dashboard (Svelte) and self-contained desktop app (Tauri 2) | In progress | 0004, 0005 |
-| [0007](0007-delivery-helpers.md) | Delivery helpers: hook, wake supervisor, agent adapters, stack commands | In progress | 0004 |
+| [0006](0006-dashboard-and-desktop.md) | Dashboard (Svelte) and self-contained desktop app (Tauri 2) | Done | 0004, 0005 |
+| [0007](0007-delivery-helpers.md) | Delivery helpers: hook, wake supervisor, agent adapters, stack commands | Done | 0004 |
 | [0008](0008-work-sources-and-linear.md) | Work-source engine + Linear adapter | Done | 0005, 0006 (panel) |
 | [0009](0009-jira-source.md) | Jira adapter | Done | 0008 |
 | [0010](0010-docs-and-release.md) | Docs, `DECISIONS.md`, full verification, honest report | In progress | all |

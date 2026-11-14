@@ -30,6 +30,7 @@ This file is the index. It lists every record, current and superseded (a test fa
 | [D0019](spec/decisions/0019-dashboard-frontend-two-carriers.md) | Svelte 5 dashboard: one bundle, two carriers, prebuilt into the binary | Superseded by D0020 |
 | [D0020](spec/decisions/0020-desktop-only-dashboard.md) | The dashboard exists only in the desktop app; there is no browser UI | Accepted (spike pending — see Consequences) |
 | [D0021](spec/decisions/0021-agent-adapters.md) | Agent tools are supported through declarative adapters; Codex is the first built-in | Accepted |
+| [D0022](spec/decisions/0022-desktop-single-instance-local-socket.md) | The desktop app's single-instance guard may use a local OS rendezvous; it never opens a network listener | Accepted |
 
 ## Defaults and departures from the brief
 

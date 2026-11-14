@@ -86,6 +86,10 @@ fn no_secret_looking_strings_in_the_repository() {
     ];
     let mut hits = Vec::new();
     for f in tracked_files() {
+        // This file spells out the patterns themselves.
+        if f.ends_with("crates/corvus-cli/tests/docs.rs") {
+            continue;
+        }
         let Ok(text) = std::fs::read_to_string(&f) else {
             continue;
         }; // binary files

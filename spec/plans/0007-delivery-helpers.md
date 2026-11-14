@@ -1,6 +1,6 @@
 # Plan 0007 — Delivery helpers: hook, wake supervisor, agent adapters, stack commands
 
-- **Status:** In progress
+- **Status:** Done
 - **Depends on:** [0004](0004-transports.md)
 - **Spec:** [system/06](../system/06-delivery-helpers.md) · brief §4.7
 
@@ -81,12 +81,12 @@ Stack commands:
 - [x] `up` without a token starts watchers only and says the HTTP API is disabled; with a token it starts
       `serve` detached and waits for health; `status` reports database, leader, server, watchers; `down` stops
       them; `up` twice is a no-op; stale pid files are handled.
-- [ ] by hand: real Claude Code session receives a peer message via the hook; real stop-block happens once.
+- [x] by hand: real Claude Code session receives a peer message via the hook; real stop-block happens once.
 
 ## Exit criteria
 
 - [x] `make lint` and `make test` pass.
-- [ ] The by-hand check is recorded below with a date.
+- [x] The by-hand check is recorded below with a date.
 - [x] No shell script is required at run time.
 
 ## Open questions
@@ -101,12 +101,18 @@ Stack commands:
 
 ## Unverified / deferred
 
-- **By hand with real Claude Code — not done.** The hook is verified through the real binary against the
-  confirmed contract (stdin event JSON → `hookSpecificOutput.additionalContext` / `decision: block`), but no
-  real Claude Code session has run it yet. To do and record here with a date: register the hook from
-  [docs/delivery-helpers.md](../../docs/delivery-helpers.md), `corvus tell <agent> …`, submit a prompt → the
-  message appears as context; let Claude finish → one stop-block, then it stops.
-- **Codex not confirmed.** Codex is not installed on the build machine, so `codex exec resume <id> "<note>"`,
+- **By hand with real Claude Code — done 2026-11-14** (Claude Code 2.1.325, headless `claude -p`, release
+  `corvus`, isolated `CORVUS_STATE_DIR`, hooks registered in a project `.claude/settings.json` exactly as in
+  [docs/delivery-helpers.md](../../docs/delivery-helpers.md), `--setting-sources project`):
+  - *Prompt:* `corvus tell hooktest "…HERON-4471."`, then a fresh session asked to quote any Corvus message →
+    replied `HERON-4471`. The `UserPromptSubmit` injection reached the model.
+  - *Stop:* only the Stop hook registered; the model ran a command that posted a second message mid-turn and
+    answered `DONE` → Claude Code showed "Stop hook feedback" with the guidance and both messages; the model
+    continued, reported both codes, and the session ended after one block (3 turns). Claude Code also emits a
+    `stop-hook-error` UI notification for the block even though the hook exited 0 with
+    `{"decision":"block",…}` on stdout and nothing on stderr (checked by running the same event by hand).
+  - Afterwards `corvus stats` still showed both messages unread: the hook created no receipts.
+- **Codex not confirmed — deferred past v1 by the owner (2026-11-14).** Codex is not installed on the build machine, so `codex exec resume <id> "<note>"`,
   its behaviour with the same conversation open in an interactive window, and its sandbox/approval settings for
   a headless turn are unverified. The built-in adapter is tested against a stub `codex` only.
 - Adapter files owned by another user are unit-tested against a fake owner id (changing ownership needs root).

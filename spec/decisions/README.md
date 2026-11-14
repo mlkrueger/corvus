@@ -22,6 +22,7 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0017](0017-single-writer-concurrency.md) | Every mutation is one short `BEGIN IMMEDIATE` transaction; unique indexes as the backstop | Accepted | [0002](../plans/0002-huginn-work-queue.md), [0005](../plans/0005-housekeeping.md) |
 | [D0020](0020-desktop-only-dashboard.md) | The dashboard exists only in the desktop app; there is no browser UI | Accepted (spike pending) | [0000](../plans/0000-roadmap.md), [0006](../plans/0006-dashboard-and-desktop.md), [0011](../plans/0011-distribution.md) |
 | [D0021](0021-agent-adapters.md) | Agent tools are supported through declarative adapters; Codex is the first built-in | Accepted | [0007](../plans/0007-delivery-helpers.md) |
+| [D0022](0022-desktop-single-instance-local-socket.md) | The desktop app's single-instance guard may use a local OS rendezvous; it never opens a network listener | Accepted | [0006](../plans/0006-dashboard-and-desktop.md) |
 
 ## Superseded (kept as history)
 
@@ -37,4 +38,4 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0018](0018-self-contained-desktop.md) | Self-contained Tauri app with an optional HTTP listener | [D0020](0020-desktop-only-dashboard.md) | Desktop-only dashboard; the app never listens |
 | [D0019](0019-dashboard-frontend-two-carriers.md) | Svelte bundle with IPC and HTTP carriers | [D0020](0020-desktop-only-dashboard.md) | No browser host; one carrier |
 
-Next free number: **0022**.
+Next free number: **0023**.

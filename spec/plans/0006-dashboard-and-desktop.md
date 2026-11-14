@@ -1,6 +1,6 @@
 # Plan 0006 — Dashboard and self-contained desktop app (Svelte + Tauri 2)
 
-- **Status:** In progress
+- **Status:** Done
 - **Depends on:** [0004](0004-transports.md), [0005](0005-housekeeping.md)
 - **Spec:** [system/05](../system/05-dashboard.md) · [system/08](../system/08-security.md) · brief §5 "Dashboard" (P6, P7)
 
@@ -40,6 +40,9 @@ release artifacts ([0011](0011-distribution.md)); any browser-hosted dashboard, 
 - [x] 10. App behaviour: background-leader participation; close-to-tray, tray menu, single instance;
       navigation guard; ticket links to the system browser.
 - [x] 11. "Connect an agent" view (config snippets); `corvus ui` launches or focuses the app.
+- [x] 12. macOS menu bar polish: monochrome template tray icon (`icons/tray-template.png`); the app leaves the
+      Dock while its window is hidden and returns on Open/relaunch. Single-instance socket kept
+      ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).
 
 ## Verification
 
@@ -65,17 +68,18 @@ release artifacts ([0011](0011-distribution.md)); any browser-hosted dashboard, 
   - [x] **the app process opens no listening socket**, with and without `CORVUS_API_TOKEN` set.
   - [x] navigation guard allows only bundled assets; rejects every external and loopback URL.
   - [x] capability config exposes only `api`, `app_info`, `install_cli`, `set_background_paused`.
-- [ ] App, automated with a window on Linux (WebDriver via `tauri-driver`, if it proves workable — see open
+- [ ] *(deferred — no Linux desktop; see Unverified)* App, automated with a window on Linux (WebDriver via `tauri-driver`, if it proves workable — see open
       questions): launch, see seeded data, post a message, hostile text renders literally.
-- [ ] App, by hand on macOS (recorded in this plan with date): on a machine with nothing else running, launch
+- [x] App, by hand on macOS (recorded in this plan with date): on a machine with nothing else running, launch
       the app → dashboard shows live data; run `corvus tell` from a terminal → message appears; hostile text
       renders literally; click a ticket link → system browser; close window → still in tray and still leader;
-      Quit → `corvus mcp` still works.
+      menu bar icon is the monochrome raven and follows light/dark; after close the Dock icon is gone and tray
+      Open brings window and Dock icon back; Quit → `corvus mcp` still works.
 
 ## Exit criteria
 
 - [x] `make lint`, `make test`, `make test-e2e` pass.
-- [ ] The manual macOS checklist is filled in below.
+- [x] The manual macOS checklist is filled in below.
 - [x] `corvus-http` has no `/ui` route and no static assets; the `corvus` binary builds without Node.
 
 ## Open questions
@@ -91,21 +95,21 @@ release artifacts ([0011](0011-distribution.md)); any browser-hosted dashboard, 
 
 ## Unverified / deferred
 
-- **Manual macOS checklist — not yet done (needs the owner at the machine).** The app was launched against a
-  temporary state directory with hostile seed data and a live `corvus tell`; it ran with no warnings and no
-  listening TCP/UDP socket, but its window could not be looked at from the build session (the terminal has no
-  Screen Recording permission). To do, and record here with a date: launch with nothing else running → live
-  data; `corvus tell` from a terminal → message appears; hostile text renders literally; close window → still in
-  the tray and still the leader (`corvus status` / `run/leader.json`); tray Pause/Resume; Quit → `corvus mcp`
+- **Manual macOS checklist — done by the owner, 2026-11-14**, all rows pass. Unsigned `make bundle` build
+  (after step 12), throwaway `CORVUS_STATE_DIR`, release `corvus` in a terminal:
+  1. launch → dashboard loads; 2. `session register` + `corvus tell` → agent and message appear live;
+  3. hostile `<img onerror>` / `<script>` body renders literally, no alert; 4. menu bar shows the monochrome
+  raven, tinted for light/dark; 5. tray menu Open / Pause / Quit; 6. close window → window and Dock icon gone,
+  raven stays; 7. `corvus status` → app still the background leader; 8. Open → window and Dock icon return;
+  9. Pause/Resume toggles; 10. relaunch → no second window, existing one focused; 11. Quit → `corvus stats`
   still works.
-- **Linux / WebKitGTK** was not checked at all (no Linux machine): neither the spike's CSP/Trusted-Types result
-  nor `tauri-driver` window tests. The Linux row stays open.
-- **Single instance uses a Unix-domain socket** (`tauri-plugin-single-instance` rendezvous at
-  `/tmp/<identifier>_si.sock`). It is not a network port, so the "no listening TCP/UDP socket" test passes, but
-  it is a local listening socket, which the spec's "never opens a socket" does not allow for. Recorded as a known
-  gap pending an owner decision (keep it, or replace the plugin with a lock file and lose "second launch focuses
-  the window" on Linux).
-- The tray icon is the full-colour app icon, not a macOS template image.
+  Not checked by hand: "ticket link → system browser" (needs a Linear or Jira task; no account). The link guard
+  is covered by unit and e2e tests.
+- **Linux / WebKitGTK — deferred past v1** (no Linux desktop machine): neither the spike's CSP/Trusted-Types
+  result nor `tauri-driver` window tests were run. The Linux desktop app is built from the same code but
+  unverified; the `corvus` binary itself is verified on Linux (plan 0011).
+- **Single instance uses a Unix-domain socket** on macOS (`/tmp/<identifier>_si.sock`). Owner kept it
+  (2026-11-14); the rule is now "no network listener" ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).
 - The e2e "bundle in a browser engine" tests use a shim that proxies to `corvus serve`; the IPC shape is also
   checked against the real Rust `dispatch` (desktop tests), but the two were not run together in a real window.
 
@@ -129,3 +133,4 @@ release artifacts ([0011](0011-distribution.md)); any browser-hosted dashboard, 
 | ID | Summary | Record |
 |---|---|---|
 | D0020 | The dashboard exists only in the self-contained Tauri app: Svelte 5 frontend, one IPC command into the HTTP route table in memory, no browser UI, no `/ui` route, and the app never opens a listener. A spike confirms the bundle is sink-free, with vanilla TypeScript as the fallback. | [0020](../decisions/0020-desktop-only-dashboard.md) |
+| D0022 | The single-instance guard keeps its local rendezvous (Unix socket on macOS, D-Bus on Linux); the rule is "no network listener", and the callback only shows the window. | [0022](../decisions/0022-desktop-single-instance-local-socket.md) |
