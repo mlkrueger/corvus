@@ -25,12 +25,12 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 ## Work breakdown
 
 - [ ] 1. **Spikes (gate — results recorded below before step 2).**
-  - [ ] a. Claude Code waiter edge cases: wake while the user is typing; wake while a turn is running; the
+  - [x] a. Claude Code waiter edge cases: wake while the user is typing; wake while a turn is running; the
         longest a background hook may run and what happens at its timeout; whether a `SessionStart` entry arms
         before the first turn; a headless `claude -p` run must still exit promptly with the waiter registered.
-  - [ ] b. Waiter lifetime: it exits when its `claude` process is gone (killed, crashed, terminal closed).
+  - [x] b. Waiter lifetime: it exits when its `claude` process is gone (killed, crashed, terminal closed).
   - [ ] c. `/clear` carry-over: pick the mechanism (see open questions) and prove it on a real session.
-  - [ ] d. OpenCode 2.3 live: the session id reaches `corvus mcp` (`_meta["ai.opencode/sessionID"]`);
+  - [x] d. OpenCode 2.3 live: the session id reaches `corvus mcp` (`_meta["ai.opencode/sessionID"]`);
         `opencode run --session <id> "<note>"` starts a turn in an idle open session and the open window shows it.
   - [ ] e. Codex (install it; the owner signs in): `codex queue --thread <id> --message "<note>"` on an idle
         open session; where the id reaches `corvus mcp`.
@@ -106,6 +106,35 @@ pseudo-terminal, project-level settings):
 - `CLAUDE_CODE_SESSION_ID` is set in the MCP server's environment at start (stale after a clear); hooks get
   `session_id` on stdin and `CLAUDE_PID` in the environment; hooks and the MCP server share the parent process.
 - The waiter in those tests **outlived a killed session** (the reason for 1b).
+
+### Spike results (step 1, 2026-11-16)
+
+Claude Code 2.1.325, interactive sessions in a pseudo-terminal, a prototype shell waiter:
+
+| Question | Result | Consequence |
+|---|---|---|
+| Wake while the user is typing | The session woke and answered; the half-typed text stayed in the input box untouched. | No collision handling needed. |
+| Wake while a turn is running | The running turn finished, then the wake started a new turn straight away. | Nothing to do; wakes queue behind the turn. |
+| How a wake arrives | As a prompt: `UserPromptSubmit` fires, and the `Stop` after it has `stop_hook_active=true`. | The inbox hook's prompt path runs on a wake too; the shown-set must make the two agree. |
+| Time limit | Default **600 s**: the waiter got `SIGTERM` at 10 minutes and the session stayed asleep afterwards. A 20 s limit behaved the same way. | The hook entry must set a long `timeout`; the waiter treats `SIGTERM` as a normal exit. |
+| A longer limit | With `"timeout": 86400` the waiter was still alive at 698 s and woke the idle session when triggered. Limits above 12 minutes were not run to the end. | Ship `86400`; an idle session is re-armed by any turn, so the worst case is one missed wake after a day of idleness. |
+| `SessionStart` entry | Arms before the first prompt and wakes the session. | Register the waiter on `SessionStart` and `Stop`. |
+| Several stops | Every `Stop` starts another waiter; the earlier ones keep running (three alive at once). | The per-conversation lock in step 7 is required, not optional. |
+| Session exits normally | Claude Code sends the waiters `SIGTERM`. | Clean. |
+| Session killed (`SIGKILL`) | The waiter is orphaned; polling its parent process id catches it within a second. | Step 7 keeps the parent check. |
+| Headless `claude -p` | **Does not exit** while a waiter runs, and a wake starts another turn in it. | The waiter must not arm when headless: `CLAUDE_CODE_ENTRYPOINT` is `sdk-cli` there and `cli` when interactive. |
+
+OpenCode 2.3.0, a free hosted model, a logging wrapper around `corvus mcp`:
+
+| Question | Result | Consequence |
+|---|---|---|
+| Does the id reach `corvus mcp`? | Yes, on every tool call: `_meta["ai.opencode/sessionID"] = "ses_…"`; `clientInfo.name = "opencode"`. Not in the environment. | The link is made at `register_session` from request metadata. |
+| Wake from outside | `opencode run --session <id> "<note>"` started a turn in the idle session in ~3 s, and the open window showed it live. | The `opencode` adapter is `["opencode", "run", "--session", "{conversation}", "{note}"]`. |
+| One MCP process per session? | **No.** The shared service runs one `corvus mcp` for all sessions (two sessions, one process, two ids). | `corvus mcp`'s "remembered session" must be kept per conversation, not per process. |
+| Inherited environment | The service passed its own start-up environment to `corvus mcp` — including an unrelated `CLAUDE_CODE_SESSION_ID`. | Trust that variable only when `clientInfo` says the client is Claude Code. |
+
+Still open: 1c (the `/clear` mechanism is feasible — both events fire in one process with the same `CLAUDE_PID`
+— but the write path is not chosen), 1e (Codex 0.169.0 is installed; needs the owner to sign in).
 
 From documentation and source only, not run: the OpenCode 2.x service API and MCP session metadata (the 2.3.0
 CLI on this machine does have `run --session`, `api`, `service`); Codex `codex queue`, its shared daemon, hooks
