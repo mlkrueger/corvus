@@ -102,6 +102,7 @@ enum Command {
     /// Launch the desktop app (or focus it if it is running).
     Ui,
     /// The Claude Code inbox hook: reads the event on stdin, prints context or nothing. Never fails.
+    /// `corvus hook wait` is the background waiter that wakes an idle session (exit 2) when mail arrives.
     Hook,
     /// Wake supervisor: wait for mail for AGENT and wake it (adapter / --exec) or print it (--print).
     Watch(wake_cmds::WatchArgs),
@@ -368,6 +369,14 @@ mod wake_cmds;
 fn main() -> ExitCode {
     // The hook takes a fast path: no config errors, no logging, no runtime; it always exits 0.
     if std::env::args().nth(1).as_deref() == Some("hook") {
+        if std::env::args().nth(2).as_deref() == Some("wait") {
+            // The waiter: exit 2 is Claude Code's "wake the model" signal; everything else is a silent 0.
+            return if hook::wait_main() {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            };
+        }
         hook::main();
         return ExitCode::SUCCESS;
     }

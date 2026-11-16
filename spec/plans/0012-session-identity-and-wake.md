@@ -48,7 +48,7 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - [x] 6. `/clear` carry-over, by the mechanism chosen in 1c.
 - [x] 6b. Migration `0008`: `messages.wake`, `messages.reassigned_from`, `receipts.kind` / `reassigned_to`.
       `post_message` accepts `wake` on an operator broadcast only; `corvus tell --all [--wake]`.
-- [ ] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
+- [x] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
       on the inbox for mail not in the shown-set; exit 2 with the formatted messages on stderr and the shown-set
       updated; exit 0 when its session is gone; never fails in any other way.
 - [ ] 8. Setup: `corvus setup claude [--remove] [--yes]`; the same snippet in
@@ -149,6 +149,22 @@ the model called `register_session` → agent `solar-raven` linked to the conver
 its code; `/clear` → `conversation.carried`, the new id resolves to `solar-raven`, and the next prompt was shown
 the unread message again (the hook's state file for the new id records it). Not yet run with the hooks in the
 real user-level `~/.claude/settings.json`.
+
+### Step 7 on a real session (2026-11-16)
+
+Same setup, plus `corvus hook wait` (`asyncRewake`, `timeout` 86400) on `SessionStart` and `Stop`, Corvus MCP
+tools pre-approved:
+
+- **Idle wake, end to end:** the session registered and went idle; `corvus tell <agent> --type question "What
+  is 17 + 25? …"` from outside → with nobody typing, the agent posted `42` as an `answer` in the same thread
+  and acknowledged the question (one `ack` receipt).
+- **Timeline run:** one waiter while idle; a direct message woke it (shown-set gained the id, a new waiter
+  armed after the turn); an ordinary broadcast did **not** wake it; a `--wake` broadcast did, and showed the
+  ordinary one with it. No waiter was left running after `/exit`.
+- With the Corvus tools *not* pre-approved the woken turn stops at Claude Code's permission prompt — the setup
+  docs must say to allow them.
+- The first waiter of a brand-new state directory exits at `SessionStart` because no database exists yet; the
+  `Stop` after the first turn arms it. Harmless, and only on a machine's very first session.
 
 Earlier note, now superseded by step 6: 1c (the `/clear` mechanism is feasible — both events fire in one process with the same `CLAUDE_PID`
 — but the write path is not chosen), 1e (Codex 0.169.0 is installed; needs the owner to sign in).

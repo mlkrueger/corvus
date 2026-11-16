@@ -95,7 +95,7 @@ struct Current {
 }
 
 /// Claude session ids become part of a file name: only `[A-Za-z0-9_-]`, 1-128 characters.
-fn valid_session_id(s: &str) -> bool {
+pub(crate) fn valid_session_id(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
         && s.chars()
@@ -132,7 +132,7 @@ pub fn current_conversation(state_dir: &Path, pid: u32) -> Option<String> {
 }
 
 /// `Ok(default)` when there is no state yet; `Err` when the file exists but is unreadable or corrupt.
-fn load_state(p: &Path) -> Result<HookState, ()> {
+pub(crate) fn load_state(p: &Path) -> Result<HookState, ()> {
     match std::fs::read_to_string(p) {
         Ok(t) => serde_json::from_str(&t).map_err(|_| ()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HookState::default()),
@@ -141,7 +141,7 @@ fn load_state(p: &Path) -> Result<HookState, ()> {
 }
 
 /// Temp file + rename. `false` if the state could not be written.
-fn save_state(p: &Path, s: &HookState) -> bool {
+pub(crate) fn save_state(p: &Path, s: &HookState) -> bool {
     save_json(p, s)
 }
 

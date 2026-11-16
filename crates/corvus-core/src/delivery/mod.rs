@@ -4,4 +4,5 @@
 pub mod adapters;
 pub mod bindings;
 pub mod hook;
+pub mod waiter;
 pub mod watch;
