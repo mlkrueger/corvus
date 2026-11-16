@@ -155,6 +155,8 @@ messages (
   session_id      TEXT REFERENCES sessions,
   idempotency_key TEXT,
   created_at      INTEGER NOT NULL,
+  wake            INTEGER NOT NULL DEFAULT 0 CHECK (wake IN (0,1)),   -- a broadcast that wakes idle sessions
+  reassigned_from INTEGER REFERENCES messages,                        -- the original, for a reassigned copy
   UNIQUE (id, thread_id),
   FOREIGN KEY (in_reply_to, thread_id) REFERENCES messages (id, thread_id)   -- reply stays in its thread
 )
@@ -169,10 +171,15 @@ receipts (
   agent_name TEXT    NOT NULL REFERENCES agents,
   session_id TEXT    REFERENCES sessions,
   acked_at   INTEGER NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'ack' CHECK (kind IN ('ack','reassigned')),
+  reassigned_to TEXT REFERENCES agents,
+  CHECK ((kind = 'reassigned') = (reassigned_to IS NOT NULL)),
   PRIMARY KEY (message_id, agent_name)
 )
 ```
-Read state lives here, so `messages` rows never change.
+Read state lives here, so `messages` rows never change. A `reassigned` receipt is the operator moving the
+message to another agent, not the agent acknowledging it
+([D0025](../decisions/0025-operator-reassigns-stranded-mail.md)).
 
 **Unread for agent A** (the one definition, used everywhere):
 ```sql

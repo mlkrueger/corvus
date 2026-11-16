@@ -46,14 +46,19 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - [x] 5. `corvus hook` resolves its agent by conversation when `CORVUS_AGENT_NAME` is absent; no link → silent
       exit 0. Explicit name still wins.
 - [x] 6. `/clear` carry-over, by the mechanism chosen in 1c.
+- [ ] 6b. Migration `0008`: `messages.wake`, `messages.reassigned_from`, `receipts.kind` / `reassigned_to`.
+      `post_message` accepts `wake` on an operator broadcast only; `corvus tell --all [--wake]`.
 - [ ] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
       on the inbox for mail not in the shown-set; exit 2 with the formatted messages on stderr and the shown-set
       updated; exit 0 when its session is gone; never fails in any other way.
-- [ ] 8. Setup: user-level settings snippet in [docs/delivery-helpers.md](../../docs/delivery-helpers.md) and
-      the app's "Connect an agent" view; README quick start.
-- [ ] 9. Stranded mail: `corvus tell` warns when the recipient has no live session; the dashboard flags agents
-      with unread mail and no live session and shows each session's working directory.
-- [ ] 10. Built-in `opencode` adapter, bound from the conversation link (enabled only if 1d passed).
+- [ ] 8. Setup: `corvus setup claude [--remove] [--yes]`; the same snippet in
+      [docs/delivery-helpers.md](../../docs/delivery-helpers.md) and the app's "Connect an agent" view; README.
+- [ ] 9. Stranded mail: `corvus tell` warns when the recipient is not reachable; `reassign_mail` with
+      `corvus mail reassign` and a dashboard action ([D0025](../decisions/0025-operator-reassigns-stranded-mail.md));
+      the dashboard flags unreachable agents with unread mail, shows each conversation's directory, and has a
+      "wake everyone" option on a broadcast.
+- [ ] 10. Built-in `opencode` adapter, bound from the conversation link; the background leader's wake step, so
+      a running app is all that is needed.
 - [ ] 11. *(pinned with 1e)* `codex` adapter wakes with `codex queue` (enabled only if 1e passed; otherwise stays
       as is and is reported).
 
@@ -82,17 +87,16 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 
 ## Open questions
 
-- **Resolved in step 2** (recorded in [defaults](../system/11-defaults.md) rows 60–65): the carry-over
-  mechanism (row 63), the waiter time limit (row 61). **Recommended defaults the owner has not confirmed:**
-  direct mail only wakes (row 62), `corvus up` starts watchers (row 64), unreachable agents get a warning and a
-  flag, no take-over (row 65).
+- **Resolved** (recorded in [defaults](../system/11-defaults.md) rows 60–66): the carry-over mechanism (63),
+  the waiter time limit (61), and by the owner on 2026-11-16: direct mail and operator-marked broadcasts wake
+  (62), the background leader wakes OpenCode agents (64), unreachable agents get a warning, a flag and
+  reassignment (65, D0025), setup by command and by snippet (66).
+- **Launch at login** for the desktop app, so the leader is running after a reboot — offered, not asked for.
 - **Resolved in step 4:** Claude Code 2.1.325 sends no `initialize` request to a stdio server on protocol
   `2026-07-28`; it names itself (`claude-code`) in every request's `_meta["io.modelcontextprotocol/clientInfo"]`.
   OpenCode names itself at `initialize`. The server reads both.
 - **`opencode run` and the adapter timeout**: the command returns when the turn ends, which can be longer than
   300 s. Does killing it cancel the turn? Check in step 10.
-- **An install command** (`corvus setup claude` editing `~/.claude/settings.json`) versus documented snippets
-  only. Editing the user's settings file is the owner's call.
 - **`--fork-session`** is assumed to issue a new id (a new agent); untested.
 
 ## Unverified / deferred
@@ -159,5 +163,6 @@ and MCP metadata (Codex is not installed).
 |---|---|---|
 | D0023 | An agent is tied to its tool conversation: registering links them, a resumed conversation gets the same agent and inbox, and hooks find their agent by conversation — so one user-level setup serves every session. | [0023](../decisions/0023-agent-identity-follows-conversation.md) |
 | D0024 | Idle sessions are woken through each tool's own channel (a background hook for Claude Code, the tools' shared services for OpenCode and Codex); Corvus does not own terminals. | [0024](../decisions/0024-wake-through-the-tools-own-channel.md) |
+| D0025 | The operator can move an unreachable agent's unread mail to another agent: copies for the new agent, a "reassigned" mark on the originals. It is a transfer, not an acknowledgement, and not available to agents. | [0025](../decisions/0025-operator-reassigns-stranded-mail.md) |
 | D0021 | Tools are supported through declarative adapters that pass only a fixed note, never message text; the OpenCode and Codex wake paths stay inside that pattern. | [0021](../decisions/0021-agent-adapters.md) |
 | D0015 | The hook and the waiter are subcommands of the one binary and open the database directly, with no server. | [0015](../decisions/0015-process-topology-single-binary.md) |

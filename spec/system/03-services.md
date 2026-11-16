@@ -146,6 +146,14 @@ Derived task flags (computed in queries, never stored): `blocked` = some depende
   optional `id > after_id`. Never acks.
 - `ack_message`: `Conflict` if the agent is the sender or the message is addressed to someone else;
   `INSERT … ON CONFLICT DO NOTHING`; returns `newly_acked`.
+- **Waking broadcasts**: `post_message` takes `wake` (default false). It is accepted only on a broadcast sent
+  by the operator (`CORVUS_OPERATOR_NAME`); anything else is `Validation`. It is not in the MCP tool schema.
+  A waking broadcast wakes idle sessions like direct mail does
+  ([06](06-delivery-helpers.md#waiter-corvus-hook-wait)).
+- `reassign_mail(from, to)` ([D0025](../decisions/0025-operator-reassigns-stranded-mail.md)): operator action.
+  In one transaction, for every unread message addressed to `from`: post a copy to `to` (same thread, type,
+  sender and body; `reassigned_from` = the original) and write a `reassigned` receipt on the original. Skips
+  messages `to` sent. Idempotent. Event `message.reassigned` per message (no body). `from = to` is `Validation`.
 - `list_messages` (operator view): newest first, `before_id` paging, filters `agent` (sender or recipient),
   `thread`, `unread_only`. Each row carries its thread and `read_by` / `unread_by`. For a broadcast, the
   audience is every agent that has had a session, minus the sender. Never acks.

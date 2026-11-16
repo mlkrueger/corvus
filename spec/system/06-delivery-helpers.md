@@ -87,9 +87,9 @@ kills the hook and the session can no longer be woken).
 - **It follows the process's current conversation** (`hook/current/<claude-pid>.json`), re-reading it each
   tick, and resolves the agent from that ([Which agent](#which-agent)). So it survives `/clear` and an
   in-session `/resume` without a second waiter. No agent yet → it keeps waiting and looks again every 5 s (the session may register later).
-- **Wakes for direct mail only**: an unread message addressed to the agent whose id is not in the hook's
-  shown-set. Broadcasts are shown at the session's next turn by the inbox hook, not by a wake
-  ([11](11-defaults.md) row 62).
+- **What wakes**: an unread message addressed to the agent, or a broadcast the operator marked `wake`, whose
+  id is not in the hook's shown-set. An ordinary broadcast is shown at the session's next turn by the inbox
+  hook, not by a wake ([11](11-defaults.md) row 62).
 - **On new mail**: add the ids to the shown-set, save it, print the same text the `Stop` block prints (guidance
   + messages) to stderr, exit 2. If the state cannot be saved it exits 0 instead — never a wake loop. A wake
   arrives as a prompt, so `UserPromptSubmit` then runs the inbox hook; the shared shown-set stops a repeat.
@@ -103,13 +103,19 @@ kills the hook and the session can no longer be woken).
 **Reachable.** An agent is *reachable* when it has a session that has not ended, or a waiter holds the lock
 for a process whose current conversation resolves to it, or a watcher holds `watch/<agent>/lock`. `corvus tell`
 to an agent that is not reachable still delivers, and warns: the message waits until that conversation is
-resumed. The dashboard flags agents that have unread direct mail and are not reachable, and shows each
-conversation's directory ([05](05-dashboard.md)).
+resumed. The dashboard flags agents that have unread direct mail and are not reachable, shows each
+conversation's directory, and offers **Reassign** to move that mail to another agent
+([D0025](../decisions/0025-operator-reassigns-stranded-mail.md), [05](05-dashboard.md)).
 
-Setup is one user-level file, `~/.claude/settings.json` ([docs](../../docs/delivery-helpers.md)):
-`corvus hook` on `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PostToolUse`, `Stop`, and `corvus hook wait`
-(with `asyncRewake` and the timeout) on `SessionStart` and `Stop`. A running session picks the entries up at its
-next event.
+**Setup** is one user-level file, `~/.claude/settings.json`: `corvus hook` on `SessionStart`, `SessionEnd`,
+`UserPromptSubmit`, `PostToolUse`, `Stop`, and `corvus hook wait` (with `asyncRewake` and the timeout) on
+`SessionStart` and `Stop`. A running session picks the entries up at its next event. Two ways, same result:
+
+- `corvus setup claude` prints the exact change and asks before writing; `--yes` skips the question,
+  `--remove` takes the entries out again. It edits only its own entries (recognised by their command), keeps
+  everything else in the file byte-for-byte where it can, writes through a temp file, and leaves a
+  `settings.json.corvus-backup` beside it.
+- The same snippet in the [docs](../../docs/delivery-helpers.md), for pasting by hand.
 
 ## Wake supervisor (`corvus watch <agent>`)
 
@@ -197,7 +203,13 @@ An agent with no entry in `bindings.json` is treated as bound when its newest co
 ([D0023](../decisions/0023-agent-identity-follows-conversation.md)) is for a tool that has an adapter of the
 same name: adapter = the tool, `{conversation}` = that conversation id. An explicit `corvus agent bind` wins.
 `claude-code` has no adapter — its sessions wake themselves through the [waiter](#waiter-corvus-hook-wait).
-`corvus up` starts a watcher for every agent bound either way.
+
+**Who runs it.** Once the desktop app is running the owner should need nothing else, so the background leader
+(the app or `corvus serve`, [10](10-config-ops.md#background-leader)) supervises the agents bound from a
+conversation: a wake step in its loop runs the adapter for new mail, with the same delivered-set, back-off and
+per-agent lock as `corvus watch` (so the two never wake the same agent twice). `corvus up` and `corvus watch`
+remain for explicit bindings and headless machines. With no leader running, those sessions are not woken; they
+see their mail at their next turn if their tool has a hook.
 
 ### Built-in: `opencode`
 

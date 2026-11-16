@@ -33,6 +33,7 @@ This file is the index. It lists every record, current and superseded (a test fa
 | [D0022](spec/decisions/0022-desktop-single-instance-local-socket.md) | The desktop app's single-instance guard may use a local OS rendezvous; it never opens a network listener | Accepted |
 | [D0023](spec/decisions/0023-agent-identity-follows-conversation.md) | An agent's identity follows its tool conversation, so hooks need no per-project name | Accepted |
 | [D0024](spec/decisions/0024-wake-through-the-tools-own-channel.md) | Idle sessions are woken through each tool's own channel; Corvus does not own the terminal | Accepted |
+| [D0025](spec/decisions/0025-operator-reassigns-stranded-mail.md) | The operator can reassign an agent's unread mail; it is a transfer, not an acknowledgement | Accepted |
 
 ## Defaults and departures from the brief
 
