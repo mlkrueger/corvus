@@ -74,6 +74,8 @@ pub struct Services {
     settings: Settings,
     operator_name: AgentName,
     export_repo: Option<PathBuf>,
+    /// Where delivery helpers keep their locks; `None` means no lock is ever seen (tests, the hook).
+    state_dir: Option<PathBuf>,
 }
 
 impl Services {
@@ -84,6 +86,7 @@ impl Services {
             settings,
             operator_name: AgentName::parse("operator").expect("valid literal"),
             export_repo: None,
+            state_dir: None,
         }
     }
 
@@ -92,6 +95,17 @@ impl Services {
         Self::new(db, clock, Settings::from_config(config))
             .with_operator(config.operator_name.clone())
             .with_export_repo(config.export_repo.clone())
+            .with_state_dir(config.state_dir.clone())
+    }
+
+    /// The state directory whose watcher and waiter locks count towards "reachable" (system/06).
+    pub fn with_state_dir(mut self, dir: PathBuf) -> Self {
+        self.state_dir = Some(dir);
+        self
+    }
+
+    pub fn state_dir(&self) -> Option<&Path> {
+        self.state_dir.as_deref()
     }
 
     pub fn with_operator(mut self, name: AgentName) -> Self {

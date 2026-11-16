@@ -30,6 +30,7 @@
   let to = $state('');
   let composeType = $state<MessageType>('note');
   let composeBody = $state('');
+  let wakeEveryone = $state(false);
   let composeBusy = $state(false);
   let composeError = $state<string | null>(null);
 
@@ -40,9 +41,10 @@
     composeBusy = true;
     composeError = null;
     try {
-      if (to === '') await sendBroadcast(operator, body, composeType);
+      if (to === '') await sendBroadcast(operator, body, composeType, wakeEveryone);
       else await sendDirect(operator, to, body, composeType);
       composeBody = '';
+      wakeEveryone = false;
       onChanged();
     } catch (err) {
       composeError = errorText(err);
@@ -115,6 +117,11 @@
         </select>
       </label>
       <span class="muted">as {operator}</span>
+      {#if to === ''}
+        <label class="inline" title="Starts a turn in every idle session now. Without it, each session sees the message at its next turn.">
+          <input type="checkbox" aria-label="Wake everyone" bind:checked={wakeEveryone} /> wake everyone now
+        </label>
+      {/if}
     </div>
     <textarea aria-label="Message body" rows="2" placeholder="Message" bind:value={composeBody}></textarea>
     <div class="compose-row">
@@ -134,6 +141,7 @@
             <span class="muted">to</span>
             <span class="agent">{recipientLabel(m)}</span>
             <span class="badge type-{m.type}">{m.type}</span>
+            {#if m.wake}<span class="badge wake">wake</span>{/if}
             <span class="muted">{ago(m.created_at, now)}</span>
           </div>
           <div class="row-sub muted thread">thread: {m.thread_title}</div>
@@ -141,6 +149,8 @@
           <div class="row-sub muted receipts">
             {#if m.read_by.length > 0}<span>read by {m.read_by.join(', ')}</span>{/if}
             {#if m.unread_by.length > 0}<span class="unread-by">unread by {m.unread_by.join(', ')}</span>{/if}
+            {#if m.reassigned_to}<span class="reassigned">reassigned to {m.reassigned_to}</span>{/if}
+            {#if m.reassigned_from !== null}<span class="reassigned">moved here from message {m.reassigned_from}</span>{/if}
           </div>
           {#if replyingTo === m.id}
             <form class="reply" onsubmit={(e) => reply(e, m)} aria-label="Reply to message {m.id}">

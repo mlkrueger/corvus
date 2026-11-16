@@ -20,6 +20,7 @@ export class Dashboard {
   get agents(): string[] {
     const names: string[] = [];
     for (const s of this.overview?.sessions ?? []) names.push(s.agent_name);
+    for (const a of this.overview?.agents ?? []) names.push(a.name);
     for (const m of this.messages) {
       names.push(m.sender);
       if (m.recipient) names.push(m.recipient);

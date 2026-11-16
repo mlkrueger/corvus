@@ -308,4 +308,50 @@ async fn admin_routes() {
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     let r = post(&e.app, "/api/admin/export", &json!({"nope": 1})).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Reassigning stranded mail (D0025).
+    register(&e.app, "bob").await;
+    let sent = ok(&post(
+        &e.app,
+        "/api/messages/direct",
+        &json!({"from": "operator", "to": "alice", "body": "hi"}),
+    )
+    .await);
+    let moved = ok(&post(
+        &e.app,
+        "/api/admin/reassign-mail",
+        &json!({"from": "alice", "to": "bob"}),
+    )
+    .await);
+    assert_eq!(moved["moved"][0]["original_id"], sent["id"]);
+    let inbox = ok(&get(&e.app, "/api/inbox/bob").await);
+    assert_eq!(inbox[0]["reassigned_from"], sent["id"]);
+    assert_eq!(inbox[0]["id"], moved["moved"][0]["message_id"]);
+    let list = ok(&get(&e.app, "/api/messages").await);
+    let original = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == sent["id"])
+        .unwrap();
+    assert_eq!(original["reassigned_to"], "bob");
+    assert_eq!(original["read_by"], json!([]));
+    let overview = ok(&get(&e.app, "/api/overview").await);
+    let bob = overview["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["name"] == "bob")
+        .unwrap();
+    assert_eq!(bob["unread_direct"], 1);
+    assert_eq!(bob["reachable"], true);
+    let r = post(
+        &e.app,
+        "/api/admin/reassign-mail",
+        &json!({"from": "alice", "to": "alice"}),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let r = post(&e.app, "/api/admin/reassign-mail", &json!({"from": "alice"})).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
 }

@@ -74,7 +74,7 @@
   {#if showConnect}<Connect onClose={() => (showConnect = false)} />{/if}
   <main class="grid">
     <div class="area-sessions">
-      <Sessions sessions={dash.overview?.sessions ?? []} tasks={dash.overview ? [...dash.overview.tasks.claimed, ...dash.overview.tasks.open] : []} {now} />
+      <Sessions sessions={dash.overview?.sessions ?? []} agents={dash.overview?.agents ?? []} onChanged={changed} tasks={dash.overview ? [...dash.overview.tasks.claimed, ...dash.overview.tasks.open] : []} {now} />
     </div>
     <div class="area-activity"><Activity items={dash.overview?.events ?? []} {now} /></div>
     <div class="area-messages">

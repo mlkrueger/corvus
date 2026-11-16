@@ -7,8 +7,8 @@ use corvus_domain::{
 
 use crate::api::{
     AckMessage, AckResult, ArtifactInput, Bootstrap, CreateThread, DecisionView, DigestView, ListDecisions,
-    ListMessages, MessageListItem, MessageView, PostMessage, ReadInbox, RecordDecision, SendDirect,
-    ThreadView, WriteDigest,
+    ListMessages, MessageListItem, MessageView, PostMessage, ReadInbox, ReassignMail, ReassignResult,
+    ReassignedMessage, RecordDecision, SendDirect, ThreadView, WriteDigest,
 };
 use crate::db::{Reader, WriteTx};
 use crate::ids::{new_artifact_id, new_decision_id, new_thread_id};
@@ -306,6 +306,92 @@ impl Muninn<'_> {
         })
     }
 
+    /// Operator action (D0025): moves every unread message addressed to `from` over to `to`. Each one is
+    /// copied (same thread, type, sender and body) and the original gets a `reassigned` receipt, which is
+    /// not an acknowledgement. Messages `to` itself sent are left alone. Idempotent: a second run finds
+    /// nothing unread.
+    pub fn reassign_mail(&self, req: &ReassignMail) -> Result<ReassignResult> {
+        let from = agent("from", &req.from)?;
+        let to = agent("to", &req.to)?;
+        if from == to {
+            return Err(CorvusError::Validation(
+                "to: must be a different agent than from".into(),
+            ));
+        }
+        let operator = self.s.operator_name().clone();
+        let now = self.s.now();
+        self.s.db().write(|tx| {
+            for a in [&from, &to] {
+                if !agents::exists(tx, a)? {
+                    return Err(CorvusError::NotFound(format!("agent {a} not found")));
+                }
+            }
+            let mut moved = Vec::new();
+            for m in messages::unread_direct(tx, from.as_str())? {
+                if m.sender == to.as_str() {
+                    continue;
+                }
+                let kind: MessageType = m.kind.parse()?;
+                let copy = messages::insert(
+                    tx,
+                    &messages::NewMessage {
+                        thread_id: &m.thread_id,
+                        sender: &m.sender,
+                        recipient: Some(to.as_str()),
+                        kind,
+                        in_reply_to: m.in_reply_to,
+                        body: &m.body,
+                        session_id: None,
+                        idempotency_key: None,
+                        wake: false,
+                        reassigned_from: Some(m.id),
+                    },
+                    now,
+                )?;
+                for a in artifacts::list(tx, artifacts::Owner::Message(m.id))? {
+                    let reference = ArtifactRef {
+                        kind: a.kind.parse()?,
+                        path: a.path,
+                        commit: a.commit_hash,
+                    };
+                    artifacts::insert(
+                        tx,
+                        &new_artifact_id().to_string(),
+                        &reference,
+                        &a.description,
+                        artifacts::Owner::Message(copy),
+                        now,
+                    )?;
+                }
+                receipts::insert_reassigned(tx, m.id, from.as_str(), to.as_str(), now)?;
+                events::insert(
+                    tx,
+                    EventKind::MessageReassigned,
+                    &NewEvent {
+                        summary: format!(
+                            "{operator} moved message {} from {from} to {to} (now message {copy})",
+                            m.id
+                        ),
+                        agent_name: Some(operator.as_str()),
+                        thread_id: Some(&m.thread_id),
+                        message_id: Some(copy),
+                        ..NewEvent::default()
+                    },
+                    now,
+                )?;
+                moved.push(ReassignedMessage {
+                    original_id: m.id,
+                    message_id: copy,
+                });
+            }
+            Ok(ReassignResult {
+                from: from.to_string(),
+                to: to.to_string(),
+                moved,
+            })
+        })
+    }
+
     /// The operator's view: newest first, with read/unread-by lists. Never acks.
     pub fn list_messages(&self, req: &ListMessages) -> Result<Vec<MessageListItem>> {
         let a = req.agent.as_deref().map(|x| agent("agent", x)).transpose()?;
@@ -324,7 +410,10 @@ impl Muninn<'_> {
             rows.into_iter()
                 .map(|m| {
                     let read_by = receipts::readers(tx, m.id)?;
+                    let reassigned_to = receipts::reassigned_to(tx, m.id)?;
                     let audience: Vec<String> = match &m.recipient {
+                        // Moved to another agent: no longer waiting on its first recipient.
+                        Some(_) if reassigned_to.is_some() => Vec::new(),
                         Some(r) => vec![r.clone()],
                         None => audience_all.iter().filter(|x| **x != m.sender).cloned().collect(),
                     };
@@ -337,6 +426,7 @@ impl Muninn<'_> {
                         thread_title,
                         read_by,
                         unread_by,
+                        reassigned_to,
                     })
                 })
                 .collect()

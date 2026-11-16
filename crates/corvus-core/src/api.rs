@@ -431,6 +431,34 @@ pub struct MessageListItem {
     pub thread_title: String,
     pub read_by: Vec<String>,
     pub unread_by: Vec<String>,
+    /// Set when the operator moved this message to another agent (not an acknowledgement, D0025).
+    pub reassigned_to: Option<String>,
+}
+
+/// Operator action: move `from`'s unread direct mail to `to` (D0025).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
+#[serde(deny_unknown_fields)]
+pub struct ReassignMail {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ReassignedMessage {
+    /// The original, now marked reassigned for `from`.
+    pub original_id: i64,
+    /// The copy addressed to `to`.
+    pub message_id: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ReassignResult {
+    pub from: String,
+    pub to: String,
+    pub moved: Vec<ReassignedMessage>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -601,6 +629,19 @@ pub struct OverviewSession {
     pub unread: i64,
 }
 
+/// One agent as the dashboard's "Agents & sessions" panel needs it (system/05, system/06 "Reachable").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct AgentStatus {
+    pub name: String,
+    /// Unread mail addressed to this agent (broadcasts not counted).
+    pub unread_direct: i64,
+    /// Something can deliver its mail: an open session, a waiter on its conversation, or a watcher.
+    pub reachable: bool,
+    /// Its tool conversations, newest first.
+    pub conversations: Vec<ConversationView>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct TaskColumns {
@@ -629,6 +670,8 @@ pub struct Overview {
     pub presence_counts: std::collections::BTreeMap<String, i64>,
     /// Live sessions plus sessions ended in the last day, newest first.
     pub sessions: Vec<OverviewSession>,
+    /// Every agent that has had a session, a conversation or unread direct mail.
+    pub agents: Vec<AgentStatus>,
     pub tasks: TaskColumns,
     pub stats: Stats,
     pub blocked_by_cancelled: i64,

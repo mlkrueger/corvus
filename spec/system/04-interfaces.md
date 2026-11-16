@@ -72,6 +72,7 @@ keeps in step with the route table.
 | `POST /api/decisions` · `GET /api/decisions?task=&thread=&include_superseded=` | `record_decision` · `list_decisions` |
 | `GET /api/events?limit=&before_id=` | list audit events |
 | `POST /api/admin/expire-leases` · `/end-stale-sessions` · `/export` | `expire_leases` · `end_stale_sessions` · `export_state_to_git` |
+| `POST /api/admin/reassign-mail` | `reassign_mail` (operator action; no MCP tool, [D0025](../decisions/0025-operator-reassigns-stranded-mail.md)) |
 | `GET /api/sources` · `GET /api/sources/{source}` · `PUT …/filter` · `POST …/sync` · `POST …/queue` | work sources (`jira`, `linear`) — [07](07-work-sources.md#http-surface) |
 
 Path parameters are validated (agent-name grammar, UUID, integer) before the service is called; failures are 422.

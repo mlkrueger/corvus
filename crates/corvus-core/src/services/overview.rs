@@ -3,13 +3,19 @@
 
 use std::collections::BTreeMap;
 
-use corvus_domain::{Result, TaskStatus};
+use std::collections::BTreeSet;
 
-use crate::api::{EventView, Health, ListEvents, Overview, OverviewSession, Stats, TaskColumns, Thresholds};
+use corvus_domain::{ConversationRef, Result, TaskStatus, Tool};
+
+use crate::api::{
+    AgentStatus, EventView, Health, ListEvents, Overview, OverviewSession, Stats, TaskColumns, Thresholds,
+};
 use crate::clock::Timestamp;
 use crate::db::{Reader, migrator::SCHEMA_VERSION};
-use crate::services::{Services, views};
-use crate::store::{claims, decisions, events, messages, sessions, tasks};
+use crate::delivery::reach::{self, Holders};
+use crate::services::sessions::conversation_view;
+use crate::services::{Services, agent, views};
+use crate::store::{agents, claims, conversations, decisions, events, messages, sessions, tasks};
 
 /// Overview limits ([defaults #18](../../../../spec/system/11-defaults.md)).
 const COLUMN_LIMIT: u32 = 50;
@@ -51,8 +57,45 @@ impl OverviewService<'_> {
         })
     }
 
+    /// Held watcher and waiter locks. File IO, so always before the transaction, never inside it.
+    fn holders(&self) -> Holders {
+        self.s.state_dir().map(reach::scan).unwrap_or_default()
+    }
+
+    /// Every agent that has had a session, a conversation or unread direct mail, with whether anything can
+    /// deliver its mail right now (system/06 "Reachable").
+    pub fn agents(&self) -> Result<Vec<AgentStatus>> {
+        let holders = self.holders();
+        self.s.db().read(|tx| agents_in(tx, &holders))
+    }
+
+    /// One agent's status. `NotFound` for an agent Corvus has never seen.
+    pub fn agent_status(&self, name: &str) -> Result<AgentStatus> {
+        let name = agent("agent", name)?;
+        let holders = self.holders();
+        self.s.db().read(|tx| {
+            if !agents::exists(tx, &name)? {
+                return Err(corvus_domain::CorvusError::NotFound(format!(
+                    "agent {name} not found"
+                )));
+            }
+            let reachable = reachable_agents(tx, &holders)?;
+            let unread = messages::unread_direct(tx, name.as_str())?.len();
+            Ok(AgentStatus {
+                reachable: reachable.contains(name.as_str()),
+                unread_direct: i64::try_from(unread).unwrap_or(i64::MAX),
+                conversations: conversations::for_agent(tx, name.as_str())?
+                    .into_iter()
+                    .map(conversation_view)
+                    .collect(),
+                name: name.to_string(),
+            })
+        })
+    }
+
     /// Everything the dashboard shows, from one consistent snapshot.
     pub fn overview(&self) -> Result<Overview> {
+        let holders = self.holders();
         let now = self.s.now();
         let settings = self.s.settings();
         let operator = self.s.operator_name().to_string();
@@ -89,6 +132,7 @@ impl OverviewService<'_> {
                 },
                 presence_counts,
                 sessions: list,
+                agents: agents_in(tx, &holders)?,
                 tasks: TaskColumns {
                     open: column(TaskStatus::Open)?,
                     claimed: column(TaskStatus::Claimed)?,
@@ -108,6 +152,45 @@ impl OverviewService<'_> {
             })
         })
     }
+}
+
+/// Agents something can deliver to: an open session, a waiter whose conversation is linked to the agent, or
+/// a watcher.
+fn reachable_agents(tx: &impl Reader, holders: &Holders) -> Result<BTreeSet<String>> {
+    let mut out: BTreeSet<String> = holders.watchers.clone();
+    out.extend(sessions::list(tx, false, None)?.into_iter().map(|s| s.agent_name));
+    for id in &holders.waiting_conversations {
+        if let Ok(conversation) = ConversationRef::new(Tool::ClaudeCode, id)
+            && let Some(link) = conversations::get(tx, &conversation)?
+        {
+            out.insert(link.agent_name);
+        }
+    }
+    Ok(out)
+}
+
+fn agents_in(tx: &impl Reader, holders: &Holders) -> Result<Vec<AgentStatus>> {
+    let reachable = reachable_agents(tx, holders)?;
+    let unread: BTreeMap<String, i64> = messages::unread_direct_counts(tx)?.into_iter().collect();
+    let with_session: BTreeSet<String> = messages::broadcast_audience(tx)?.into_iter().collect();
+    let mut out = Vec::new();
+    for name in agents::all(tx)? {
+        let conversations: Vec<_> = conversations::for_agent(tx, &name)?
+            .into_iter()
+            .map(conversation_view)
+            .collect();
+        let unread_direct = unread.get(&name).copied().unwrap_or(0);
+        if conversations.is_empty() && unread_direct == 0 && !with_session.contains(&name) {
+            continue; // only ever a sender or task author: nothing to show
+        }
+        out.push(AgentStatus {
+            reachable: reachable.contains(&name),
+            unread_direct,
+            conversations,
+            name,
+        });
+    }
+    Ok(out)
 }
 
 pub(crate) fn stats_in(tx: &impl Reader, now: i64) -> Result<Stats> {

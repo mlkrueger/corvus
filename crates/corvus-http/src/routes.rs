@@ -9,9 +9,9 @@ use corvus_core::api::{
     AckMessage, AckResult, Bootstrap, CancelResult, CancelTask, ClaimResult, ClaimTask, CompleteTask,
     ConnectResult, CreateTask, CreateThread, DecisionView, DigestView, EndStaleResult, EventView,
     ExpireResult, ExportRequest, ExportResult, Health, ListDecisions, ListEvents, ListMessages, ListSessions,
-    ListTasks, MessageListItem, MessageView, Overview, PostMessage, ReadInbox, RecordDecision,
-    RegisterSession, SendDirect, SessionRef, SessionView, Stats, TaskView, ThreadView, WaitForInbox,
-    WriteDigest,
+    ListTasks, MessageListItem, MessageView, Overview, PostMessage, ReadInbox, ReassignMail, ReassignResult,
+    RecordDecision, RegisterSession, SendDirect, SessionRef, SessionView, Stats, TaskView, ThreadView,
+    WaitForInbox, WriteDigest,
 };
 use corvus_core::api::{QueueTicket, SourceSummary, SourceView, SyncResult};
 use corvus_domain::{AgentName, CorvusError, SessionId, TaskId, ThreadId};
@@ -80,6 +80,7 @@ routes! {
     post "POST" "/api/admin/expire-leases" => expire_leases,
     post "POST" "/api/admin/end-stale-sessions" => end_stale_sessions,
     post "POST" "/api/admin/export" => export_state,
+    post "POST" "/api/admin/reassign-mail" => reassign_mail,
     get "GET" "/api/sources" => list_sources,
     get "GET" "/api/sources/{source}" => get_source,
     put "PUT" "/api/sources/{source}/filter" => put_source_filter,
@@ -329,6 +330,11 @@ async fn end_stale_sessions(State(c): State<Corvus>) -> Res<EndStaleResult> {
 
 async fn export_state(State(c): State<Corvus>, OptBody(req): OptBody<ExportRequest>) -> Res<ExportResult> {
     out(c.run(move |s| s.export().export_state_to_git(&req)).await)
+}
+
+/// Operator action (D0025). Deliberately not an MCP tool: agents cannot move each other's mail.
+async fn reassign_mail(State(c): State<Corvus>, Body(req): Body<ReassignMail>) -> Res<ReassignResult> {
+    out(c.run(move |s| s.muninn().reassign_mail(&req)).await)
 }
 
 // ---------- work sources ----------

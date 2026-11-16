@@ -120,6 +120,35 @@ pub fn unread(r: &impl Reader, agent: &str, after_id: i64, limit: u32) -> Result
     collect(&mut st, params![agent, after_id, limit])
 }
 
+/// Unread mail addressed to `agent` (no broadcasts), oldest first: what a reassignment moves (D0025).
+pub fn unread_direct(r: &impl Reader, agent: &str) -> Result<Vec<MessageRow>> {
+    let mut st = r
+        .sql()
+        .prepare(&format!(
+            "{SELECT} WHERE m.recipient = ?1 AND m.sender <> ?1
+               AND NOT EXISTS (SELECT 1 FROM receipts r WHERE r.message_id = m.id AND r.agent_name = ?1)
+             ORDER BY m.id"
+        ))
+        .db()?;
+    collect(&mut st, params![agent])
+}
+
+/// Unread direct-mail counts, for every agent that has any.
+pub fn unread_direct_counts(r: &impl Reader) -> Result<Vec<(String, i64)>> {
+    let mut st = r
+        .sql()
+        .prepare(
+            "SELECT m.recipient, count(*) FROM messages m
+              WHERE m.recipient IS NOT NULL AND m.sender <> m.recipient
+                AND NOT EXISTS (SELECT 1 FROM receipts r WHERE r.message_id = m.id
+                                 AND r.agent_name = m.recipient)
+              GROUP BY m.recipient ORDER BY m.recipient",
+        )
+        .db()?;
+    let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).db()?;
+    rows.collect::<rusqlite::Result<_>>().db()
+}
+
 /// Unread counts per agent, for every agent that has had a session.
 pub fn unread_counts(r: &impl Reader) -> Result<Vec<(String, i64)>> {
     let mut st = r

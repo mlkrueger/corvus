@@ -5,6 +5,7 @@ pub mod adapters;
 pub mod bindings;
 pub mod claude_setup;
 pub mod hook;
+pub mod reach;
 pub mod supervise;
 pub mod waiter;
 pub mod watch;

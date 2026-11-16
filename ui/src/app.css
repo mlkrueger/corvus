@@ -177,6 +177,10 @@ input[type='text'] { width: 100%; }
 .badge.presence-active { border-color: var(--accent); color: var(--accent); }
 .badge.presence-offline, .badge.presence-ended { color: var(--muted); }
 .badge.unread { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.badge.unreachable { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-text); }
+.badge.wake { border-color: var(--accent); color: var(--accent); }
+.rows.stranded { margin-bottom: 8px; }
+.reassigned { color: var(--muted); font-style: italic; }
 .lease.warn { color: var(--warn-text); background: var(--warn-bg); padding: 0 4px; border-radius: 4px; }
 
 .compose { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }

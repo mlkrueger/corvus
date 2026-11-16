@@ -24,7 +24,7 @@ fn conversation_ref(input: &ConversationInput) -> Result<ConversationRef> {
     ConversationRef::new(input.tool.parse::<Tool>()?, &input.id)
 }
 
-fn conversation_view(row: conversations::ConversationRow) -> ConversationView {
+pub(super) fn conversation_view(row: conversations::ConversationRow) -> ConversationView {
     ConversationView {
         tool: row.tool,
         conversation_id: row.conversation_id,

@@ -61,6 +61,11 @@ enum Command {
         #[command(subcommand)]
         command: MsgCommand,
     },
+    /// Operator actions on mail.
+    Mail {
+        #[command(subcommand)]
+        command: mail::MailCommand,
+    },
     /// Send a message as the operator (CORVUS_OPERATOR_NAME) unless --from is given:
     /// `corvus tell <agent> <message>` or `corvus tell --all [--wake] <message>`.
     Tell {
@@ -368,6 +373,7 @@ enum AdminCommand {
 }
 
 mod hook;
+mod mail;
 mod setup;
 mod stack;
 mod wake_cmds;
@@ -465,14 +471,18 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
                         wake,
                     }))
                 }
-                (false, [agent, message]) => json(services.muninn().send_direct(&api::SendDirect {
-                    from,
-                    to: agent.clone(),
-                    body: message.clone(),
-                    kind,
-                    idempotency_key: None,
-                    session_id: None,
-                })),
+                (false, [agent, message]) => {
+                    let sent = json(services.muninn().send_direct(&api::SendDirect {
+                        from,
+                        to: agent.clone(),
+                        body: message.clone(),
+                        kind,
+                        idempotency_key: None,
+                        session_id: None,
+                    }))?;
+                    mail::warn_if_unreachable(&services, agent);
+                    Ok(sent)
+                }
                 (true, _) => Err(CorvusError::Validation(
                     "tell --all takes one argument: the message".into(),
                 )),
@@ -481,6 +491,7 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
                 )),
             }
         }
+        Command::Mail { command } => mail::run(&services(&config)?, command),
         Command::Inbox { command } => inbox_cmd(services(&config)?, &config, command),
         Command::Digest { command } => digest_cmd(&services(&config)?, &config, command),
         Command::Decision { command } => decision_cmd(&services(&config)?, &config, command),

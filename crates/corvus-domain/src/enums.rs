@@ -108,6 +108,7 @@ string_enum!(/// Audit event kind (heartbeats are deliberately not audited).
     LeaseExpired => "lease.expired",
     ThreadCreated => "thread.created",
     MessagePosted => "message.posted",
+    MessageReassigned => "message.reassigned",
     InboxAcked => "inbox.acked",
     DigestWritten => "digest.written",
     DecisionRecorded => "decision.recorded",
@@ -173,7 +174,7 @@ mod tests {
             s(ArtifactKind::ALL),
             ["file", "branch", "worktree", "commit", "pr"]
         );
-        assert_eq!(EventKind::ALL.len(), 25);
+        assert_eq!(EventKind::ALL.len(), 26);
         assert!("Open".parse::<TaskStatus>().is_err());
     }
 }

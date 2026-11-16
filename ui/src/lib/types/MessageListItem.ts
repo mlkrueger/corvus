@@ -3,7 +3,11 @@ import type { ArtifactView } from "./ArtifactView";
 import type { MessageType } from "./MessageType";
 import type { Timestamp } from "./Timestamp";
 
-export type MessageListItem = { thread_title: string, read_by: Array<string>, unread_by: Array<string>, id: number, thread_id: string, sender: string, recipient: string | null, type: MessageType, in_reply_to: number | null, body: string, session_id: string | null, created_at: Timestamp, artifacts: Array<ArtifactView>, 
+export type MessageListItem = { thread_title: string, read_by: Array<string>, unread_by: Array<string>, 
+/**
+ * Set when the operator moved this message to another agent (not an acknowledgement, D0025).
+ */
+reassigned_to: string | null, id: number, thread_id: string, sender: string, recipient: string | null, type: MessageType, in_reply_to: number | null, body: string, session_id: string | null, created_at: Timestamp, artifacts: Array<ArtifactView>, 
 /**
  * A broadcast that wakes idle sessions.
  */

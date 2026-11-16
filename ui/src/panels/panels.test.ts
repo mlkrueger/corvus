@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HOSTILE, NOW, fakeTransport, message, overview, session, task } from '../fixtures';
+import { HOSTILE, NOW, agent, conversation, fakeTransport, message, overview, session, task } from '../fixtures';
 import { setTransport } from '../lib/api';
 import Activity from './Activity.svelte';
 import Connect from './Connect.svelte';
@@ -96,6 +96,55 @@ describe('Sessions', () => {
   it('empty state', () => {
     render(Sessions, { sessions: [], tasks: [], now: NOW });
     expect(screen.getByText('No live sessions.')).toBeInTheDocument();
+  });
+
+  it('shows the tool and directory of the agent\'s conversation', () => {
+    render(Sessions, { sessions: o.sessions, agents: o.agents, tasks, now: NOW });
+    expect(document.querySelector('[data-session="alice"] .conversation')).toHaveTextContent('claude-code · /work/project');
+    expect(document.querySelector('[data-session="bob"] .conversation')).toBeNull();
+    // Reachable agents, and unreachable ones with no mail, are not flagged.
+    expect(document.querySelector('[data-stranded]')).toBeNull();
+  });
+
+  it('flags an unreachable agent with unread mail and reassigns it', async () => {
+    const t = fakeTransport({ 'POST /api/admin/reassign-mail': { from: 'dave', to: 'bob', moved: [] } });
+    restore = setTransport(t.transport);
+    const onChanged = vi.fn();
+    const agents = [
+      agent({ name: 'bob' }),
+      agent({ name: 'dave', reachable: false, unread_direct: 3, conversations: [conversation({ agent_name: 'dave', tool: 'opencode', directory: '/work/old' })] }),
+      agent({ name: 'erin', reachable: false }),
+    ];
+    render(Sessions, { sessions: [], agents, tasks: [], now: NOW, onChanged });
+    const row = document.querySelector('[data-stranded="dave"]') as HTMLElement;
+    expect(row).toHaveTextContent('not reachable');
+    expect(row).toHaveTextContent('3 unread');
+    expect(row).toHaveTextContent('opencode · /work/old');
+    expect(document.querySelectorAll('[data-stranded]')).toHaveLength(1);
+    const button = screen.getByRole('button', { name: 'Reassign' });
+    expect(button).toBeDisabled();
+    const select = screen.getByLabelText('Reassign dave to') as HTMLSelectElement;
+    expect([...select.options].map((x) => x.value)).toEqual(['', 'bob', 'erin']);
+    await fireEvent.change(select, { target: { value: 'bob' } });
+    await fireEvent.click(button);
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(t.api()).toHaveLength(1);
+    expect(t.api()[0]).toMatchObject({ method: 'POST', path: '/api/admin/reassign-mail', body: { from: 'dave', to: 'bob' } });
+  });
+
+  it('shows the server error when reassigning fails', async () => {
+    const t = fakeTransport({
+      'POST /api/admin/reassign-mail': () => ({ status: 404, body: { error: { code: 'not_found', message: 'agent bob not found' } } }),
+    });
+    restore = setTransport(t.transport);
+    const onChanged = vi.fn();
+    const agents = [agent({ name: 'bob' }), agent({ name: HOSTILE, reachable: false, unread_direct: 1 })];
+    const { container } = render(Sessions, { sessions: [], agents, tasks: [], now: NOW, onChanged });
+    expect(container.querySelector('img')).toBeNull();
+    await fireEvent.change(container.querySelector('select') as HTMLSelectElement, { target: { value: 'bob' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Reassign' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('agent bob not found');
+    expect(onChanged).not.toHaveBeenCalled();
   });
 });
 
@@ -195,6 +244,40 @@ describe('Messages', () => {
     await waitFor(() => expect(t.api()).toHaveLength(2));
     expect(t.api()[0]!.path).toBe('/api/threads');
     expect(t.api()[1]).toMatchObject({ path: '/api/messages', body: { thread_id: 'tb', to: null, body: 'all' } });
+  });
+
+  it('"wake everyone" is offered only for a broadcast and is sent as `wake`', async () => {
+    const t = fakeTransport({ 'POST /api/threads': { id: 'tb' }, 'POST /api/messages': { id: 3 } });
+    restore = setTransport(t.transport);
+    render(Messages, base());
+    const box = screen.getByLabelText('Wake everyone') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await fireEvent.click(box);
+    await fireEvent.input(screen.getByLabelText('Message body'), { target: { value: 'stop now' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(t.api()).toHaveLength(2));
+    expect(t.api()[1]).toMatchObject({ path: '/api/messages', body: { to: null, wake: true } });
+    // One use: the next broadcast does not wake unless asked again.
+    await waitFor(() => expect((screen.getByLabelText('Wake everyone') as HTMLInputElement).checked).toBe(false));
+    await fireEvent.input(screen.getByLabelText('Message body'), { target: { value: 'fyi' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(t.api()).toHaveLength(4));
+    expect(t.api()[3]).toMatchObject({ path: '/api/messages', body: { to: null, wake: false } });
+    // Not offered for a direct message.
+    await fireEvent.change(screen.getByLabelText('Recipient'), { target: { value: 'bob' } });
+    expect(screen.queryByLabelText('Wake everyone')).toBeNull();
+  });
+
+  it('shows a reassignment as a move, never as read', () => {
+    const moved = [
+      message({ id: 5, sender: 'operator', recipient: 'old', reassigned_to: 'new' }),
+      message({ id: 6, sender: 'operator', recipient: 'new', reassigned_from: 5, unread_by: ['new'] }),
+    ];
+    render(Messages, { ...base(), messages: moved });
+    const original = document.querySelector('[data-message="5"]') as HTMLElement;
+    expect(original).toHaveTextContent('reassigned to new');
+    expect(original).not.toHaveTextContent('read by');
+    expect(document.querySelector('[data-message="6"]')).toHaveTextContent('moved here from message 5');
   });
 
   it('reply to a question defaults to answer; reply to a note defaults to note', async () => {

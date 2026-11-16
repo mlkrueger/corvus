@@ -144,7 +144,8 @@ count the audience as every agent that has ever had a session ([defaults #16](..
 | Command | Arguments and flags |
 |---|---|
 | `corvus msg post <BODY>` | `--thread <THREAD_ID>` (required), `--from <NAME>` (default `CORVUS_OPERATOR_NAME`), `--to <NAME>` (omit to broadcast), `--type note\|question\|answer\|handoff\|status\|decision` (default `note`), `--in-reply-to <MESSAGE_ID>`, `--idempotency-key` |
-| `corvus tell <AGENT> <MESSAGE>` | Direct message from the operator. `--from <NAME>` (default `CORVUS_OPERATOR_NAME`), `--type <TYPE>` (default `note`). |
+| `corvus tell <AGENT> <MESSAGE>` | Direct message from the operator. `--from <NAME>` (default `CORVUS_OPERATOR_NAME`), `--type <TYPE>` (default `note`). If nothing can deliver to the agent right now (no open session, no waiter, no watcher) the message is still sent and a warning is printed on stderr. |
+| `corvus mail reassign <FROM> <TO>` | Operator action: moves `<FROM>`'s unread direct mail to `<TO>`, for a conversation that will not come back. Each message is copied to `<TO>` (same thread, sender, type and text) and the original is marked reassigned, which is not an acknowledgement. Broadcasts are not moved. Running it again moves nothing. Prints `{from, to, moved: [{original_id, message_id}]}`. |
 | `corvus inbox read <AGENT>` | Unread messages, oldest first. Never acknowledges. `--limit <N>`, `--after-id <ID>` (paging hint). |
 | `corvus inbox ack <MESSAGE_ID>` | `--agent <NAME>` (required). |
 | `corvus inbox wait <AGENT>` | Blocks until there is unread mail or the timeout, then prints it. `--timeout <SECONDS>` (default 60, at most 120), `--session <SESSION_ID>`. |
@@ -327,7 +328,7 @@ the same key returns the original result.
 |---|---|---|
 | `GET /api/health` | none | `{ok, schema_version}` |
 | `GET /api/stats` | none | task and lease counts, unread totals and per agent |
-| `GET /api/overview` | none | sessions with presence, task columns, stats, recent events and decisions, thresholds |
+| `GET /api/overview` | none | sessions with presence, agents (unread direct mail, reachable, conversations), task columns, stats, recent events and decisions, thresholds |
 | `POST /api/sessions` | `{agent_name?, client_name, metadata?, idempotency_key?}` | session |
 | `GET /api/sessions` | query `include_ended`, `agent` | list of sessions |
 | `POST /api/connect` | as `POST /api/sessions` | `{session, bootstrap, guidance}` |
@@ -380,6 +381,7 @@ the same key returns the original result.
 | `POST /api/admin/expire-leases` | none | `{expired}` |
 | `POST /api/admin/end-stale-sessions` | none | `{ended: [ids]}` |
 | `POST /api/admin/export` | optional `{subdir?, commit?}`; an empty body is fine | `{paths, removed, committed}` |
+| `POST /api/admin/reassign-mail` | `{from, to}` | `{from, to, moved: [{original_id, message_id}]}`; operator action, not an MCP tool |
 
 **Work sources** (`{source}` is `jira` or `linear`; see [spec/system/07](../spec/system/07-work-sources.md))
 

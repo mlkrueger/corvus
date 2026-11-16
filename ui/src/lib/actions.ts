@@ -6,6 +6,8 @@ import type { CreateThread } from './types/CreateThread';
 import type { MessageListItem } from './types/MessageListItem';
 import type { MessageType } from './types/MessageType';
 import type { PostMessage } from './types/PostMessage';
+import type { ReassignMail } from './types/ReassignMail';
+import type { ReassignResult } from './types/ReassignResult';
 import type { SendDirect } from './types/SendDirect';
 import type { ThreadView } from './types/ThreadView';
 
@@ -51,6 +53,15 @@ export async function sendBroadcast(
     wake,
   };
   await request('POST', '/api/messages', req);
+}
+
+/**
+ * Operator action: move `from`'s unread direct mail to `to` (each message is copied; the original is marked
+ * reassigned, which is not an acknowledgement).
+ */
+export async function reassignMail(from: string, to: string): Promise<ReassignResult> {
+  const req: ReassignMail = { from, to };
+  return request<ReassignResult>('POST', '/api/admin/reassign-mail', req);
 }
 
 /** Who a reply goes to: the original sender, or (for the operator's own message) its recipient. */

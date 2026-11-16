@@ -1,6 +1,8 @@
 // Seeded data for unit tests, plus a recording fake transport.
 import { vi } from 'vitest';
 import type { Transport } from './lib/api';
+import type { AgentStatus } from './lib/types/AgentStatus';
+import type { ConversationView } from './lib/types/ConversationView';
 import type { MessageListItem } from './lib/types/MessageListItem';
 import type { Overview } from './lib/types/Overview';
 import type { OverviewSession } from './lib/types/OverviewSession';
@@ -59,11 +61,28 @@ export function session(over: Partial<OverviewSession> = {}): OverviewSession {
   };
 }
 
+export function conversation(over: Partial<ConversationView> = {}): ConversationView {
+  return {
+    tool: 'claude-code',
+    conversation_id: 'c-1',
+    agent_name: 'alice',
+    directory: '/work/project',
+    carried_from: null,
+    created_at: iso(-3600),
+    ...over,
+  };
+}
+
+export function agent(over: Partial<AgentStatus> = {}): AgentStatus {
+  return { name: 'alice', unread_direct: 0, reachable: true, conversations: [], ...over };
+}
+
 export function message(over: Partial<MessageListItem> = {}): MessageListItem {
   return {
     thread_title: 'Direct: alice',
     read_by: [],
     unread_by: [],
+    reassigned_to: null,
     id: 1,
     thread_id: 't-1',
     sender: 'alice',
@@ -111,6 +130,12 @@ export function overview(over: Partial<Overview> = {}): Overview {
       session({ id: 's-2', agent_name: 'bob', client_name: 'codex', presence: 'active' }),
       session({ id: 's-3', agent_name: 'carol', presence: 'offline', last_seen_at: iso(-7200) }),
       session({ id: 's-4', agent_name: 'dave', presence: 'ended', ended_at: iso(-300), end_reason: 'ended' }),
+    ],
+    agents: [
+      agent({ name: 'alice', unread_direct: 1, conversations: [conversation({ agent_name: 'alice' })] }),
+      agent({ name: 'bob' }),
+      agent({ name: 'carol' }),
+      agent({ name: 'dave', reachable: false }),
     ],
     tasks: {
       open: [task({ id: 'o-1', title: 'Write the parser', priority: 1 }), blocked],
