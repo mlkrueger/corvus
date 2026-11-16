@@ -1,7 +1,16 @@
-//! Records the git commit for `corvus --version` (falls back to "unknown" outside a git checkout).
+//! Records the git commit for `corvus --version`. `CORVUS_GIT_COMMIT` overrides it (release builds in a container
+//! without git); otherwise it falls back to "unknown" outside a git checkout.
 use std::process::Command;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=CORVUS_GIT_COMMIT");
+    if let Some(c) = std::env::var("CORVUS_GIT_COMMIT")
+        .ok()
+        .filter(|c| !c.trim().is_empty())
+    {
+        println!("cargo:rustc-env=CORVUS_GIT_COMMIT={}", c.trim());
+        return;
+    }
     let commit = Command::new("git")
         .args(["rev-parse", "--short=12", "HEAD"])
         .output()

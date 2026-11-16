@@ -63,6 +63,10 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 53 | Package manager for `ui/` | npm (with a committed `package-lock.json`) | Ships with Node; one less tool for contributors |
 | 54 | Generated TypeScript integers | `number` (ts-rs `TS_RS_LARGE_INT`) | `JSON.parse` yields numbers; ids and counts stay below 2^53 |
 | 55 | Linux `corvus` binary | Static musl (`<arch>-unknown-linux-musl`) | Runs on any distribution with no libraries installed; the desktop app is not affected |
+| 56 | Where releases live | GitHub Releases: archives, the zipped app and `SHA256SUMS`; no crates.io publish | Owner direction (2026-11-14); one place to download, nothing to name-squat yet |
+| 57 | Linux release builds | Cross-compiled from a container of the build machine's architecture (clang + `rust-lld` + Debian's musl headers) | Running `rustc` under amd64 emulation on Apple silicon crashed; cross-compiling is also faster |
+| 58 | macOS signing identity | The owner's self-signed personal certificate, chosen by name via `CORVUS_SIGN_IDENTITY` | Stable identity across updates on the owner's Macs; Gatekeeper still asks once on first launch |
+| 59 | Version skew on write | Its own error, `upgraded` (HTTP 503, CLI exit 7), with a "restart this process" message shown by every transport | Under `internal` the transports hid the message, so an old process gave no hint why it failed |
 
 ## Deliberate departures from the brief's wording
 

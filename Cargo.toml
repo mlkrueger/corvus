@@ -26,7 +26,6 @@ sha2 = "0.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "fmt"] }
 clap = { version = "4", features = ["derive", "env"] }
-libc = "0.2"
 schemars = "1"
 rmcp = { version = "3", features = ["server", "macros", "transport-io"] }
 axum = "0.8"

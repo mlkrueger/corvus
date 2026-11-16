@@ -334,11 +334,10 @@ impl Database {
         };
         let version = user_version(&tx).db()?;
         if version != self.expected_version {
-            return Err(CorvusError::Internal(format!(
-                "Corvus was upgraded — restart this process (database schema {version}, this process expects \
-                 {})",
-                self.expected_version
-            )));
+            return Err(CorvusError::Upgraded {
+                database: version,
+                expected: self.expected_version,
+            });
         }
         let wtx = WriteTx { tx };
         let out = f(&wtx)?;

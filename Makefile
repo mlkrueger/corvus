@@ -108,3 +108,86 @@ check-seam:
 
 run:
 	$(CARGO) run -p corvus-cli -- health
+
+# ---------------------------------------------------------------------------------------------------------------
+# Release artifacts (release machine only; see docs/release.md). Linux builds and smoke tests use podman.
+# Signing: set CORVUS_SIGN_IDENTITY to a keychain identity name; nothing secret lives in the repo.
+VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+DIST := target/dist
+MACOS_TARGETS := aarch64-apple-darwin x86_64-apple-darwin
+LINUX_ARCHES := arm64 amd64
+LINUX_IMAGE ?= docker.io/library/rust:1-slim
+SMOKE_IMAGE ?= docker.io/library/debian:stable-slim
+triple_arm64 := aarch64-unknown-linux-musl
+triple_amd64 := x86_64-unknown-linux-musl
+
+.PHONY: dist dist-clean dist-macos dist-app
+
+# Every artifact plus SHA256SUMS in target/dist.
+dist: dist-clean dist-macos dist-app $(addprefix dist-linux-,$(LINUX_ARCHES)) $(addprefix smoke-linux-,$(LINUX_ARCHES))
+	cd $(DIST) && shasum -a 256 *.tar.gz *.zip > SHA256SUMS && cat SHA256SUMS
+
+dist-clean:
+	rm -rf $(DIST) && mkdir -p $(DIST)
+
+
+dist-macos:
+	@for t in $(MACOS_TARGETS); do rustup target add $$t > /dev/null; done
+	@for t in $(MACOS_TARGETS); do \
+	  $(CARGO) build --release --locked -p corvus-cli --target $$t || exit 1; \
+	  mkdir -p $(DIST)/stage/$$t && cp target/$$t/release/corvus README.md $(DIST)/stage/$$t/; \
+	done
+	@for t in $(MACOS_TARGETS); do b=$(DIST)/stage/$$t/corvus; \
+	  if [ -n "$$CORVUS_SIGN_IDENTITY" ]; then \
+	    codesign --force --options runtime --sign "$$CORVUS_SIGN_IDENTITY" $$b && codesign --verify --strict $$b && echo "signed: $$b" || exit 1; \
+	  else echo "unsigned: $$b (set CORVUS_SIGN_IDENTITY to sign)"; fi; \
+	done
+	@for t in $(MACOS_TARGETS); do \
+	  COPYFILE_DISABLE=1 tar -C $(DIST)/stage/$$t -czf $(DIST)/corvus-$(VERSION)-$$t.tar.gz corvus README.md; \
+	done
+	@arch -x86_64 $(DIST)/stage/x86_64-apple-darwin/corvus --version
+	@$(DIST)/stage/aarch64-apple-darwin/corvus --version
+
+# The desktop app for this Mac's architecture, zipped with its signature intact.
+dist-app: bundle
+	ditto -c -k --keepParent target/release/bundle/macos/Corvus.app $(DIST)/Corvus-$(VERSION)-macos-$(shell uname -m).app.zip
+
+# Static musl binaries, cross-compiled in a throwaway container of this machine's architecture (clang + rust-lld
+# + Debian's musl headers for the target). Emulating the foreign architecture instead crashed rustc.
+BUILD_ARCH := $(if $(filter arm64 aarch64,$(shell uname -m)),arm64,amd64)
+gnuarch_arm64 := aarch64
+gnuarch_amd64 := x86_64
+dist-linux-%:
+	mkdir -p target/linux-$* $(DIST)/stage/$(triple_$*)
+	podman run --rm --platform linux/$(BUILD_ARCH) -v $(CURDIR):/src -v corvus-cargo-$(BUILD_ARCH):/usr/local/cargo/registry \
+	  -e CARGO_TARGET_DIR=/src/target/linux-$* -e CORVUS_GIT_COMMIT=$(COMMIT) -w /src $(LINUX_IMAGE) sh -c '\
+	  set -e; dpkg --add-architecture $* && apt-get update -qq && apt-get install -y -qq clang lld musl-dev:$* > /dev/null; \
+	  rustup target add $(triple_$*) > /dev/null; \
+	  export CC_$(subst -,_,$(triple_$*))=clang \
+	    CFLAGS_$(subst -,_,$(triple_$*))="--target=$(gnuarch_$*)-linux-musl -isystem /usr/include/$(gnuarch_$*)-linux-musl" \
+	    CARGO_TARGET_$(shell echo $(triple_$*) | tr a-z- A-Z_)_LINKER=rust-lld; \
+	  cargo build --release --locked -p corvus-cli --target $(triple_$*)'
+	cp target/linux-$*/$(triple_$*)/release/corvus README.md $(DIST)/stage/$(triple_$*)/
+	COPYFILE_DISABLE=1 tar -C $(DIST)/stage/$(triple_$*) -czf $(DIST)/corvus-$(VERSION)-$(triple_$*).tar.gz corvus README.md
+
+# Clean-machine smoke test: only the binary in a stock image; health, cross-process claim race, MCP, hook.
+define SMOKE
+set -e; export HOME=/tmp/h CORVUS_STATE_DIR=/tmp/h/.corvus; mkdir -p $$HOME; C=/c/corvus; cd /tmp
+$$C --version
+ldd $$C 2>&1 | grep -qE "not a dynamic executable|statically linked"; echo "static: ok"
+$$C health 2>/dev/null | grep -q '"ok":true'; echo "health: ok"
+$$C task create --title race > /dev/null 2>&1
+for i in 1 2 3 4 5 6 7 8; do $$C session register --agent racer$$i 2>/dev/null | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' > s$$i; done
+for i in 1 2 3 4 5 6 7 8; do ( $$C task claim --session $$(cat s$$i) > c$$i 2>/dev/null ) & done; wait
+w=$$(cat c1 c2 c3 c4 c5 c6 c7 c8 | grep -c '"status":"claimed"' || true); echo "claim race winners: $$w"; [ "$$w" = 1 ]
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' '{"jsonrpc":"2.0","method":"notifications/initialized"}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | CORVUS_AGENT_NAME=smoke $$C mcp 2>/dev/null > mcp.out
+n=$$(grep '"id":2' mcp.out | grep -o '"name":"[a-z_]*"' | wc -l); echo "mcp tools: $$n"; [ "$$n" -ge 20 ]
+$$C tell racer1 "smoke hello" > /dev/null 2>&1
+echo '{"hook_event_name":"UserPromptSubmit","session_id":"smoke","prompt":"hi"}' | CORVUS_AGENT_NAME=racer1 $$C hook | grep -q "smoke hello"; echo "hook: ok"
+echo "smoke: all ok"
+endef
+export SMOKE
+
+smoke-linux-%:
+	podman run --rm --platform linux/$* -v $(CURDIR)/$(DIST)/stage/$(triple_$*):/c:ro -e SMOKE $(SMOKE_IMAGE) sh -c "$$SMOKE"

@@ -51,7 +51,7 @@ impl From<CorvusError> for ApiError {
             CorvusError::Conflict(_) | CorvusError::SessionNotActive => StatusCode::CONFLICT,
             CorvusError::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             CorvusError::Unauthorized => StatusCode::UNAUTHORIZED,
-            CorvusError::Busy => StatusCode::SERVICE_UNAVAILABLE,
+            CorvusError::Busy | CorvusError::Upgraded { .. } => StatusCode::SERVICE_UNAVAILABLE,
             CorvusError::Internal(detail) => {
                 // The detail stays in the log; the client gets a generic message.
                 tracing::error!(detail = %detail, "internal error");

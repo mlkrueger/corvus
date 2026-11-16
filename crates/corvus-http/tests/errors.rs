@@ -26,6 +26,14 @@ async fn every_corvus_error_variant_maps_per_the_spec() {
         (CorvusError::Validation("x".into()), 422, "validation"),
         (CorvusError::Unauthorized, 401, "unauthorized"),
         (CorvusError::Busy, 503, "busy"),
+        (
+            CorvusError::Upgraded {
+                database: 7,
+                expected: 6,
+            },
+            503,
+            "upgraded",
+        ),
         (CorvusError::Internal("secret detail".into()), 500, "internal"),
     ];
     for (err, status, code) in cases {
@@ -35,6 +43,17 @@ async fn every_corvus_error_variant_maps_per_the_spec() {
         assert!(body["error"]["message"].is_string(), "{code}");
         assert_eq!(body.as_object().unwrap().len(), 1, "only the error key");
     }
+}
+
+#[tokio::test]
+async fn upgraded_error_tells_the_client_to_restart() {
+    let (_, body) = mapped(CorvusError::Upgraded {
+        database: 7,
+        expected: 6,
+    })
+    .await;
+    let message = body["error"]["message"].as_str().unwrap();
+    assert!(message.contains("restart this process"), "{message}");
 }
 
 #[tokio::test]

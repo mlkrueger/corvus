@@ -15,6 +15,7 @@ A transport parses input, calls exactly one service method, and serialises the r
 | `Unauthorized` | 401 | `unauthorized` | n/a | 3 |
 | host not allowed | 403 | `forbidden_host` | n/a | n/a |
 | `Busy` (database write queue timed out; retry) | 503 | `busy` | tool error | 6 |
+| `Upgraded` (another process migrated the database after this one opened it; restart) | 503 | `upgraded` | tool error | 7 |
 | `Internal` | 500 | `internal` (no detail leaked) | tool error | 1 |
 
 Body shape for every error raised by a handler or a middleware: `{"error": {"code": "...", "message": "..."}}`.

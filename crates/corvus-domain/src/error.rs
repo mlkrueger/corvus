@@ -17,6 +17,11 @@ pub enum CorvusError {
     Unauthorized,
     #[error("database is busy; retry")]
     Busy,
+    /// Another process migrated the database after this one opened it.
+    #[error(
+        "Corvus was upgraded — restart this process (database schema {database}, this process expects {expected})"
+    )]
+    Upgraded { database: i64, expected: i64 },
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -34,6 +39,7 @@ impl CorvusError {
             Self::SessionNotActive => "session_not_active",
             Self::Unauthorized => "unauthorized",
             Self::Busy => "busy",
+            Self::Upgraded { .. } => "upgraded",
             Self::Internal(_) => "internal",
         }
     }
@@ -46,6 +52,7 @@ impl CorvusError {
             Self::Validation(_) => 2,
             Self::Unauthorized => 3,
             Self::Busy => 6,
+            Self::Upgraded { .. } => 7,
             Self::Internal(_) => 1,
         }
     }
@@ -68,6 +75,14 @@ mod tests {
             (CorvusError::SessionNotActive, "session_not_active", 5),
             (CorvusError::Unauthorized, "unauthorized", 3),
             (CorvusError::Busy, "busy", 6),
+            (
+                CorvusError::Upgraded {
+                    database: 7,
+                    expected: 6,
+                },
+                "upgraded",
+                7,
+            ),
             (CorvusError::Internal("x".into()), "internal", 1),
         ];
         for (e, code, exit) in cases {
@@ -83,5 +98,13 @@ mod tests {
             "session is not active; call register_session again"
         );
         assert_eq!(CorvusError::Busy.to_string(), "database is busy; retry");
+        assert_eq!(
+            CorvusError::Upgraded {
+                database: 7,
+                expected: 6
+            }
+            .to_string(),
+            "Corvus was upgraded — restart this process (database schema 7, this process expects 6)"
+        );
     }
 }

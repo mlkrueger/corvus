@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use corvus_core::Corvus;
 use corvus_core::hermod::Hermod;
-use corvus_core::testing::TestDb;
+use corvus_core::testing::{TestDb, exec};
 use corvus_domain::{AgentName, CorvusError, GUIDANCE};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, Lines, ReadHalf, WriteHalf, split};
@@ -306,6 +306,27 @@ async fn errors_are_tool_errors_with_the_json_shape() {
     assert!(is_err && v["error"]["code"] == "session_not_active", "{v}");
     a.close().await.unwrap();
     b.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_running_server_says_restart_after_another_process_upgrades_the_schema() {
+    let t = TestDb::new();
+    let (mut a, _) = Client::start(&t, None).await;
+    a.ok(
+        "register_session",
+        json!({"agent_name": "alpha", "client_name": "test"}),
+    )
+    .await;
+    // Another process migrates the database underneath this server.
+    let other = t.reopen();
+    exec(&other, "PRAGMA user_version = 99").unwrap();
+    let (is_err, v) = a.tool("create_task", json!({"title": "x"})).await;
+    assert!(is_err, "{v}");
+    assert_eq!(v["error"]["code"], "upgraded", "{v}");
+    let message = v["error"]["message"].as_str().unwrap();
+    assert!(message.contains("restart this process"), "{message}");
+    // Ending the session on close is a write, so it fails the same way; that is expected here.
+    let _ = a.close().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
