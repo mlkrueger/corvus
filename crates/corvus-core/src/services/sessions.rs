@@ -169,6 +169,16 @@ impl Sessions<'_> {
         })
     }
 
+    /// Every agent's newest conversation link (the one a wake is sent to).
+    pub fn newest_conversations(&self) -> Result<Vec<ConversationView>> {
+        self.s.db().read(|tx| {
+            Ok(conversations::newest_per_agent(tx)?
+                .into_iter()
+                .map(conversation_view)
+                .collect())
+        })
+    }
+
     /// The tool issued a new id for the same session (Claude Code `/clear`): links `to` to the agent `from`
     /// is linked to. Returns that agent, or `None` when `from` is not linked or `to` already is (no change).
     pub fn carry_conversation(

@@ -688,6 +688,9 @@ async fn serve_with_background(
         stop_rx.clone(),
         |_| {},
         Some(corvus.sources().clone()),
+        Some(corvus_core::delivery::supervise::WakeSupervision::new(
+            corvus.clone(),
+        )),
     ));
     let mut http_stop = stop_rx;
     let signal = tokio::spawn(async move {

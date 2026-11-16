@@ -21,6 +21,7 @@ use std::sync::Arc;
 use corvus_domain::SourceId;
 
 use crate::clock::format_rfc3339;
+use crate::delivery::supervise::{WakeSupervision, supervise};
 use crate::services::Services;
 use crate::sources::Sources;
 use crate::store::hints;
@@ -229,7 +230,7 @@ pub async fn run_background(
     shutdown: watch::Receiver<bool>,
     on_pass: impl Fn(&PassReport) + Send + 'static,
 ) {
-    run_background_with_sources(services, state_dir, kind, timings, shutdown, on_pass, None).await;
+    run_background_with_sources(services, state_dir, kind, timings, shutdown, on_pass, None, None).await;
 }
 
 /// One poll loop per enabled source, for as long as this process is the leader: a pass after `first`, then every
@@ -261,7 +262,9 @@ async fn poll_source(
     }
 }
 
-/// [`run_background`] plus the work-source poll loops, which also run only in the leader.
+/// [`run_background`] plus the work-source poll loops and the wake supervisor, which also run only in the
+/// leader.
+#[allow(clippy::too_many_arguments)] // the two optional kinds of leader-only work, next to the loop's own
 pub async fn run_background_with_sources(
     services: Services,
     state_dir: PathBuf,
@@ -270,6 +273,7 @@ pub async fn run_background_with_sources(
     mut shutdown: watch::Receiver<bool>,
     on_pass: impl Fn(&PassReport) + Send + 'static,
     sources: Option<Arc<Sources>>,
+    wake: Option<WakeSupervision>,
 ) {
     let leader = loop {
         if *shutdown.borrow() {
@@ -313,6 +317,10 @@ pub async fn run_background_with_sources(
                 .collect()
         })
         .unwrap_or_default();
+    // Wakes the agents bound from a conversation (system/06); stopped through its own channel so it also
+    // ends, and kills a running adapter command, when the shutdown sender is simply dropped.
+    let (wake_stop, wake_rx) = watch::channel(false);
+    let waker = wake.map(|w| tokio::spawn(supervise(w.corvus, state_dir.clone(), w.timings, wake_rx)));
     let mut ticks =
         tokio::time::interval_at(tokio::time::Instant::now() + timings.first_pass, timings.interval);
     ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -340,6 +348,10 @@ pub async fn run_background_with_sources(
     }
     for p in polls {
         p.abort();
+    }
+    let _ = wake_stop.send(true);
+    if let Some(w) = waker {
+        let _ = w.await;
     }
     drop(leader);
 }

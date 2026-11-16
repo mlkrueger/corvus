@@ -93,7 +93,7 @@ pub fn is_waiting(state_dir: &Path, pid: u32) -> bool {
 }
 
 /// A message that wakes: addressed to the agent, or a broadcast the operator marked `wake`.
-fn wakes(m: &MessageView, agent: &AgentName) -> bool {
+pub(crate) fn wakes(m: &MessageView, agent: &AgentName) -> bool {
     match &m.recipient {
         Some(to) => to == agent.as_str(),
         None => m.wake,

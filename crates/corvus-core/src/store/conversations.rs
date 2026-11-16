@@ -76,3 +76,20 @@ pub fn for_agent(r: &impl Reader, agent_name: &str) -> Result<Vec<ConversationRo
     let rows = stmt.query_map(params![agent_name], row).db()?;
     rows.collect::<rusqlite::Result<Vec<_>>>().db()
 }
+
+/// Every agent's newest conversation, by agent name.
+pub fn newest_per_agent(r: &impl Reader) -> Result<Vec<ConversationRow>> {
+    let mut stmt = r
+        .sql()
+        .prepare(
+            "SELECT tool, conversation_id, agent_name, directory, carried_from, created_at
+               FROM conversations c
+              WHERE c.rowid = (SELECT c2.rowid FROM conversations c2
+                                WHERE c2.agent_name = c.agent_name
+                                ORDER BY c2.created_at DESC, c2.rowid DESC LIMIT 1)
+              ORDER BY agent_name",
+        )
+        .db()?;
+    let rows = stmt.query_map([], row).db()?;
+    rows.collect::<rusqlite::Result<Vec<_>>>().db()
+}

@@ -4,5 +4,6 @@
 pub mod adapters;
 pub mod bindings;
 pub mod hook;
+pub mod supervise;
 pub mod waiter;
 pub mod watch;

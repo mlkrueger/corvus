@@ -127,7 +127,10 @@ pub fn run(context: tauri::Context<Wry>) {
             corvus.services().clone(),
             config.state_dir.clone(),
             Some(corvus.sources().clone()),
-        ),
+        )
+        .with_wake(corvus_core::delivery::supervise::WakeSupervision::new(
+            corvus.clone(),
+        )),
         corvus,
         pause_item: OnceLock::new(),
     };

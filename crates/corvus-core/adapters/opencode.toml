@@ -1,0 +1,12 @@
+name  = "opencode"
+title = "OpenCode"
+
+[binding]
+conversation = { required = true, pattern = "chars:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_:8-64" }
+
+[wake]
+command = ["opencode", "run", "--session", "{conversation}", "{note}"]
+timeout_seconds = 3600
+
+[check]
+command = ["opencode", "--version"]

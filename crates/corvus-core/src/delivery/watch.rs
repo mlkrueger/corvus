@@ -1,7 +1,8 @@
 //! The wake supervisor ([system/06](../../../../spec/system/06-delivery-helpers.md#wake-supervisor-corvus-watch-agent)).
 //!
 //! Three modes share one loop: **print** (wait for unread mail, return it), **exec** (run a command per batch of
-//! new unread messages) and **adapter** (run the agent's adapter per batch; the tool gets no message text).
+//! new unread messages) and **adapter** (run the agent's adapter per batch of new mail that wakes — direct mail
+//! and `wake` broadcasts; the tool gets no message text).
 //! The supervisor never acks. Delivery bookkeeping is a *set* of message ids in
 //! `$STATE/watch/<agent>/delivered.json`; one watcher per agent is enforced by an exclusive file lock.
 //!
@@ -26,6 +27,7 @@ use crate::api::{MessageView, ReadInbox};
 use crate::config::ensure_private_dir;
 use crate::delivery::adapters::kill_group;
 use crate::delivery::bindings::write_private_atomic;
+use crate::delivery::waiter::wakes;
 use crate::facade::Corvus;
 use crate::hermod::Subscription;
 
@@ -326,6 +328,11 @@ pub async fn watch_loop(
                 .into_iter()
                 .filter(|m| !delivered.contains(&m.id))
                 .collect();
+        }
+        // An adapter starts a model turn, so only mail that wakes counts (defaults row 62). Other broadcasts
+        // stay unread and are seen at the agent's next turn.
+        if matches!(wake, Wake::Adapter { .. }) {
+            batch.retain(|m| wakes(m, agent));
         }
         if batch.is_empty() {
             if pause(&mut stop, timings.recheck, Some(&sub)).await {

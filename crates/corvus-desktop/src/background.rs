@@ -8,6 +8,7 @@ use std::time::Duration;
 use std::sync::Arc;
 
 use corvus_core::background::{LoopTimings, run_background_with_sources};
+use corvus_core::delivery::supervise::WakeSupervision;
 use corvus_core::services::Services;
 use corvus_core::sources::Sources;
 use tauri::async_runtime::{self, JoinHandle};
@@ -27,6 +28,7 @@ pub struct Background {
     services: Services,
     state_dir: PathBuf,
     sources: Option<Arc<Sources>>,
+    wake: Option<WakeSupervision>,
     inner: Mutex<Running>,
 }
 
@@ -42,6 +44,7 @@ impl Background {
             services,
             state_dir,
             sources,
+            wake: None,
             inner: Mutex::new(Running {
                 stop: None,
                 handle: None,
@@ -59,6 +62,13 @@ impl Background {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    /// Also wakes the agents bound from a conversation while this process is the leader (system/06).
+    #[must_use]
+    pub fn with_wake(mut self, wake: WakeSupervision) -> Self {
+        self.wake = Some(wake);
+        self
+    }
+
     /// `true` stops the loop (dropping leadership); `false` starts it if it is not running.
     pub fn set_paused(&self, paused: bool) {
         let mut inner = self.lock();
@@ -74,10 +84,11 @@ impl Background {
         let (tx, rx) = watch::channel(false);
         // A previous loop may still be finishing a pass; wait for it so two loops never overlap.
         let previous = inner.handle.take();
-        let (services, dir, sources) = (
+        let (services, dir, sources, wake) = (
             self.services.clone(),
             self.state_dir.clone(),
             self.sources.clone(),
+            self.wake.clone(),
         );
         inner.handle = Some(async_runtime::spawn(async move {
             if let Some(prev) = previous {
@@ -91,6 +102,7 @@ impl Background {
                 rx,
                 |_| {},
                 sources,
+                wake,
             )
             .await;
         }));

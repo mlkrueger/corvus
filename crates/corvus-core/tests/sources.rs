@@ -1574,6 +1574,7 @@ async fn the_poll_loop_repeats_and_survives_a_failing_source() {
             }
         },
         Some(h.src.clone()),
+        None,
     ));
 
     // The failing source is retried again and again; housekeeping keeps running next to it.
@@ -1629,6 +1630,7 @@ async fn only_the_background_leader_polls() {
             rx,
             |_| {},
             Some(src),
+            None,
         ))
     };
     let l1 = spawn(svc1, rx1, src1);

@@ -121,8 +121,10 @@ conversation's directory, and offers **Reassign** to move that mail to another a
 
 Blocks on the inbox with `wait_for_inbox` (no model tokens spent).
 
-- **Adapter mode** (default for a bound agent): for each batch of new unread messages, run the agent's
-  adapter ([below](#agent-adapters)). Same delivered-set, retry and timeout rules as exec mode.
+- **Adapter mode** (default for a bound agent): for each batch of new unread messages **that wake** — mail
+  addressed to the agent and broadcasts marked `wake` ([11](11-defaults.md) row 62) — run the agent's adapter
+  ([below](#agent-adapters)). Other broadcasts stay unread for the agent's next turn. Same delivered-set, retry
+  and timeout rules as exec mode.
 - **Print mode** (`--print`, and the default for an unbound agent): when unread messages exist, print them as
   JSON and exit 0.
 - **Exec mode** (`--exec <cmd>`): loop forever. For each batch of **new** unread messages (ids not in the
@@ -217,8 +219,11 @@ see their mail at their next turn if their tool has a hook.
   `chars:A-Za-z0-9_:8-64` (ids look like `ses_…`). OpenCode 2.x only.
 - Measured 2026-11-16 on 2.3.0: this starts a turn in an idle session through OpenCode's shared background
   service, and a window open on that session shows the turn live.
-- The command returns when the turn ends; its output is discarded. Behaviour on the adapter timeout is checked
-  in [plan 0012](../plans/0012-session-identity-and-wake.md).
+- The command returns when the turn ends; its output is discarded. `timeout_seconds = 3600` (the maximum),
+  because the turn runs in OpenCode's service, not in the command: killing the command mid-turn does not stop
+  the turn (measured 2026-11-16), so a timeout would only queue a second wake for mail that is still unread.
+- The leader re-reads the set of conversation-bound agents every 5 s, so a new session is wakeable a few
+  seconds after it registers.
 
 ### Built-in: `codex`
 

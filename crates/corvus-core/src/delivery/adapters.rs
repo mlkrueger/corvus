@@ -20,7 +20,10 @@ use serde_json::{Value, json};
 use std::os::unix::process::CommandExt;
 
 /// Built-in adapters: (name, TOML text).
-const BUILTINS: &[(&str, &str)] = &[("codex", include_str!("../../adapters/codex.toml"))];
+const BUILTINS: &[(&str, &str)] = &[
+    ("codex", include_str!("../../adapters/codex.toml")),
+    ("opencode", include_str!("../../adapters/opencode.toml")),
+];
 
 /// How long a `check` command may run.
 pub const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
