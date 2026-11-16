@@ -17,12 +17,14 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0012](0012-comment-tracking.md) | Comment tracking by order key + tie set | Accepted | [0008](../plans/0008-work-sources-and-linear.md), [0009](../plans/0009-jira-source.md) |
 | [D0013](0013-storage-sqlite.md) | SQLite, embedded in the binary, is the single store | Accepted | [0000](../plans/0000-roadmap.md), [0001](../plans/0001-foundation.md), [0011](../plans/0011-distribution.md) |
 | [D0014](0014-rust-stack-rusqlite.md) | rusqlite with synchronous services; tokio + axum + rmcp + clap at the edges | Accepted | [0001](../plans/0001-foundation.md), [0004](../plans/0004-transports.md) |
-| [D0015](0015-process-topology-single-binary.md) | One binary; every local process opens the database; the HTTP server is optional | Accepted | [0000](../plans/0000-roadmap.md), [0001](../plans/0001-foundation.md), [0004](../plans/0004-transports.md), [0007](../plans/0007-delivery-helpers.md), [0011](../plans/0011-distribution.md) |
+| [D0015](0015-process-topology-single-binary.md) | One binary; every local process opens the database; the HTTP server is optional | Accepted | [0000](../plans/0000-roadmap.md), [0001](../plans/0001-foundation.md), [0004](../plans/0004-transports.md), [0007](../plans/0007-delivery-helpers.md), [0011](../plans/0011-distribution.md), [0012](../plans/0012-session-identity-and-wake.md) |
 | [D0016](0016-wakeups-hints-table.md) | Wake-ups via a trigger-written hints table, detected by `data_version` | Accepted | [0003](../plans/0003-muninn-hermod.md), [0007](../plans/0007-delivery-helpers.md) |
 | [D0017](0017-single-writer-concurrency.md) | Every mutation is one short `BEGIN IMMEDIATE` transaction; unique indexes as the backstop | Accepted | [0002](../plans/0002-huginn-work-queue.md), [0005](../plans/0005-housekeeping.md) |
 | [D0020](0020-desktop-only-dashboard.md) | The dashboard exists only in the desktop app; there is no browser UI | Accepted (spike pending) | [0000](../plans/0000-roadmap.md), [0006](../plans/0006-dashboard-and-desktop.md), [0011](../plans/0011-distribution.md) |
-| [D0021](0021-agent-adapters.md) | Agent tools are supported through declarative adapters; Codex is the first built-in | Accepted | [0007](../plans/0007-delivery-helpers.md) |
+| [D0021](0021-agent-adapters.md) | Agent tools are supported through declarative adapters; Codex is the first built-in | Accepted | [0007](../plans/0007-delivery-helpers.md), [0012](../plans/0012-session-identity-and-wake.md) |
 | [D0022](0022-desktop-single-instance-local-socket.md) | The desktop app's single-instance guard may use a local OS rendezvous; it never opens a network listener | Accepted | [0006](../plans/0006-dashboard-and-desktop.md) |
+| [D0023](0023-agent-identity-follows-conversation.md) | An agent's identity follows its tool conversation, so hooks need no per-project name | Accepted | [0012](../plans/0012-session-identity-and-wake.md) |
+| [D0024](0024-wake-through-the-tools-own-channel.md) | Idle sessions are woken through each tool's own channel; Corvus does not own the terminal | Accepted | [0012](../plans/0012-session-identity-and-wake.md) |
 
 ## Superseded (kept as history)
 
@@ -38,4 +40,4 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0018](0018-self-contained-desktop.md) | Self-contained Tauri app with an optional HTTP listener | [D0020](0020-desktop-only-dashboard.md) | Desktop-only dashboard; the app never listens |
 | [D0019](0019-dashboard-frontend-two-carriers.md) | Svelte bundle with IPC and HTTP carriers | [D0020](0020-desktop-only-dashboard.md) | No browser host; one carrier |
 
-Next free number: **0023**.
+Next free number: **0025**.

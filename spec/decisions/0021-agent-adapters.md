@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-13
-- **Plans:** [0007](../plans/0007-delivery-helpers.md)
+- **Plans:** [0007](../plans/0007-delivery-helpers.md), [0012](../plans/0012-session-identity-and-wake.md)
 - **Spec:** [system/06](../system/06-delivery-helpers.md#agent-adapters) · brief §4.7
 
 ## Problem

@@ -1,0 +1,121 @@
+# Plan 0012 — Session identity and waking idle sessions
+
+- **Status:** In progress
+- **Depends on:** [0007](0007-delivery-helpers.md)
+- **Spec:** [system/06](../system/06-delivery-helpers.md) · [system/04](../system/04-interfaces.md) · [system/02](../system/02-data-model.md) · brief §3 Session, §4.7
+
+## Goal
+
+Any Claude Code session on the machine that has connected to Corvus is its own agent, is woken when mail
+arrives while it sits idle, and gets the same agent and inbox back when its conversation is resumed — set up
+once at user level, with no per-project names. OpenCode and Codex sessions get the same identity and are woken
+through their own services where that is confirmed to work.
+
+## Scope
+
+**In:** conversation links (table, service, `register_session`, `corvus mcp`); hook identity by conversation;
+carry-over on `/clear`; the waiter (`corvus hook wait`); user-level hook setup docs and the app's snippet;
+stranded-mail visibility; an `opencode` adapter and the `codex` adapter change. All three tools are in scope
+(owner, 2026-11-16); a wake path still ships only once it is confirmed on a real session of that tool.
+
+**Out:** owning a session's terminal (`corvus run`), live attach, an in-app terminal, remote access
+([D0024](../decisions/0024-wake-through-the-tools-own-channel.md)); an activity feed of what each session is
+doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a stranded agent's name from a new conversation.
+
+## Work breakdown
+
+- [ ] 1. **Spikes (gate — results recorded below before step 2).**
+  - [ ] a. Claude Code waiter edge cases: wake while the user is typing; wake while a turn is running; the
+        longest a background hook may run and what happens at its timeout; whether a `SessionStart` entry arms
+        before the first turn; a headless `claude -p` run must still exit promptly with the waiter registered.
+  - [ ] b. Waiter lifetime: it exits when its `claude` process is gone (killed, crashed, terminal closed).
+  - [ ] c. `/clear` carry-over: pick the mechanism (see open questions) and prove it on a real session.
+  - [ ] d. OpenCode 2.3 live: the session id reaches `corvus mcp` (`_meta["ai.opencode/sessionID"]`);
+        `opencode run --session <id> "<note>"` starts a turn in an idle open session and the open window shows it.
+  - [ ] e. Codex (install it; the owner signs in): `codex queue --thread <id> --message "<note>"` on an idle
+        open session; where the id reaches `corvus mcp`.
+- [ ] 2. **Spec first.** system/02 (table), /03 (service), /04 (`register_session`, MCP), /06 (hook identity,
+      waiter, adapters bound from links), /08 (threats), /11 (defaults); accept or amend D0023 and D0024.
+- [ ] 3. Migration `0007_conversations`: `(tool, conversation_id) → agent_name`, working directory, timestamps.
+      Link and carry-over written in one transaction with an audit event.
+- [ ] 4. `register_session` takes an optional conversation reference: known → attach to its agent; unknown →
+      register as today and record the link. `corvus mcp` fills it from the environment or request metadata.
+- [ ] 5. `corvus hook` resolves its agent by conversation when `CORVUS_AGENT_NAME` is absent; no link → silent
+      exit 0. Explicit name still wins.
+- [ ] 6. `/clear` carry-over, by the mechanism chosen in 1c.
+- [ ] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
+      on the inbox for mail not in the shown-set; exit 2 with the formatted messages on stderr and the shown-set
+      updated; exit 0 when its session is gone; never fails in any other way.
+- [ ] 8. Setup: user-level settings snippet in [docs/delivery-helpers.md](../../docs/delivery-helpers.md) and
+      the app's "Connect an agent" view; README quick start.
+- [ ] 9. Stranded mail: `corvus tell` warns when the recipient has no live session; the dashboard flags agents
+      with unread mail and no live session and shows each session's working directory.
+- [ ] 10. Built-in `opencode` adapter, bound from the conversation link (enabled only if 1d passed).
+- [ ] 11. `codex` adapter wakes with `codex queue` (enabled only if 1e passed; otherwise stays as is and is reported).
+
+## Verification
+
+- [ ] Links: register with an unknown, a known and no conversation; resume attaches to the same agent; two live
+      sessions on one conversation; link + event are atomic; every new SQL statement has a test.
+- [ ] Hook identity: linked conversation → that agent's mail; unlinked → empty output, exit 0, database not
+      opened for writing; explicit name wins; hostile conversation ids cannot escape the state directory.
+- [ ] Carry-over: after a clear, the new id resolves to the same agent; an unrelated session's clear does not.
+- [ ] Waiter (real binary, temp database): blocks with no mail; exits 2 with the message when another process
+      posts; a message already shown does not wake again; a second waiter exits 0; exits 0 when the parent
+      process dies; every failure path (no database, schema mismatch, busy, bad stdin) exits 0 silently.
+- [ ] No wake loop: unread-but-shown mail across ten stop events produces zero wakes.
+- [ ] By hand, real Claude Code, user-level hooks: two sessions in one folder are two agents; `corvus tell` to
+      one wakes only that one; quit and `claude --resume` → same agent, unread mail delivered; `/clear` keeps
+      the agent; a session that never connected is untouched.
+- [ ] By hand, OpenCode (and Codex if installed): tell → the idle session starts a turn and reads its inbox.
+- [ ] `corvus tell` to an agent with no live session prints the offline warning; the dashboard flags it.
+
+## Exit criteria
+
+- [ ] `make lint`, `make test` and `make test-e2e` pass.
+- [ ] The by-hand Claude Code checks are recorded below with a date.
+- [ ] Each built-in wake path is either confirmed on a real session or listed as unverified and not enabled.
+
+## Open questions
+
+- **How the link is carried across `/clear`.** The hook is read-only today. Proposed: `SessionEnd reason=clear`
+  leaves a note keyed by the `claude` process id; `SessionStart source=clear` in the same process reads it and
+  makes the one write (the only hook event that writes, off the fast path). Alternative: keep the hook read-only
+  and resolve through a state file. Decide in 1c; record in system/06.
+- **Background-hook time limit.** If Claude Code kills a long-running waiter, an idle session silently becomes
+  unwakeable until its next turn. 1a decides whether the waiter needs a re-arm strategy.
+- **An install command** (`corvus setup claude` editing `~/.claude/settings.json`) versus documented snippets
+  only. Editing the user's settings file is the owner's call.
+- **Broadcasts.** A message to everyone would wake every session, one model turn each. Wake only for direct
+  mail and deliver the rest at the next turn?
+- **Who runs the supervisor** for OpenCode and Codex agents: `corvus up` today; should the background leader
+  start watchers for linked agents?
+- **`--fork-session`** is assumed to issue a new id (a new agent); untested.
+
+## Unverified / deferred
+
+Measured before this plan was written (2026-11-16, Claude Code 2.1.325, interactive sessions in a
+pseudo-terminal, project-level settings):
+
+- A `Stop` hook with `asyncRewake: true` that waits for a trigger and exits 2 **woke an idle session** (twice),
+  and re-armed after the woken turn.
+- The same hook **added to the settings file of a running session** took effect at that session's next stop
+  (the file existed at startup; a user-level file was not tried).
+- `claude --resume <id>` and `--continue` keep the conversation id; `/clear` issues a new one in the same
+  process (`SessionEnd reason=clear`, then `SessionStart source=clear`); the MCP server is not restarted by it.
+- `CLAUDE_CODE_SESSION_ID` is set in the MCP server's environment at start (stale after a clear); hooks get
+  `session_id` on stdin and `CLAUDE_PID` in the environment; hooks and the MCP server share the parent process.
+- The waiter in those tests **outlived a killed session** (the reason for 1b).
+
+From documentation and source only, not run: the OpenCode 2.x service API and MCP session metadata (the 2.3.0
+CLI on this machine does have `run --session`, `api`, `service`); Codex `codex queue`, its shared daemon, hooks
+and MCP metadata (Codex is not installed).
+
+## Decisions
+
+| ID | Summary | Record |
+|---|---|---|
+| D0023 | An agent is tied to its tool conversation: registering links them, a resumed conversation gets the same agent and inbox, and hooks find their agent by conversation — so one user-level setup serves every session. | [0023](../decisions/0023-agent-identity-follows-conversation.md) |
+| D0024 | Idle sessions are woken through each tool's own channel (a background hook for Claude Code, the tools' shared services for OpenCode and Codex); Corvus does not own terminals. | [0024](../decisions/0024-wake-through-the-tools-own-channel.md) |
+| D0021 | Tools are supported through declarative adapters that pass only a fixed note, never message text; the OpenCode and Codex wake paths stay inside that pattern. | [0021](../decisions/0021-agent-adapters.md) |
+| D0015 | The hook and the waiter are subcommands of the one binary and open the database directly, with no server. | [0015](../decisions/0015-process-topology-single-binary.md) |

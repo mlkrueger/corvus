@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-13
 - **Supersedes:** [D0003](0003-process-topology.md)
-- **Plans:** [0000](../plans/0000-roadmap.md), [0001](../plans/0001-foundation.md), [0004](../plans/0004-transports.md), [0007](../plans/0007-delivery-helpers.md), [0011](../plans/0011-distribution.md)
+- **Plans:** [0000](../plans/0000-roadmap.md), [0001](../plans/0001-foundation.md), [0004](../plans/0004-transports.md), [0007](../plans/0007-delivery-helpers.md), [0011](../plans/0011-distribution.md), [0012](../plans/0012-session-identity-and-wake.md)
 - **Spec:** [system/01](../system/01-architecture.md#processes) · brief §5
 
 ## Problem
