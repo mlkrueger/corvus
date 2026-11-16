@@ -29,12 +29,15 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
         longest a background hook may run and what happens at its timeout; whether a `SessionStart` entry arms
         before the first turn; a headless `claude -p` run must still exit promptly with the waiter registered.
   - [x] b. Waiter lifetime: it exits when its `claude` process is gone (killed, crashed, terminal closed).
-  - [ ] c. `/clear` carry-over: pick the mechanism (see open questions) and prove it on a real session.
+  - [x] c. `/clear` carry-over: mechanism chosen (a note at `SessionEnd reason=clear`, one write at
+        `SessionStart source=clear`; [system/06](../system/06-delivery-helpers.md#session-events)); proved on a
+        real session in the by-hand checks once step 6 is built.
   - [x] d. OpenCode 2.3 live: the session id reaches `corvus mcp` (`_meta["ai.opencode/sessionID"]`);
         `opencode run --session <id> "<note>"` starts a turn in an idle open session and the open window shows it.
-  - [ ] e. Codex (install it; the owner signs in): `codex queue --thread <id> --message "<note>"` on an idle
+  - [ ] e. *(pinned by the owner 2026-11-16 — Codex 0.169.0 is installed but not signed in; come back to it)*
+        Codex: `codex queue --thread <id> --message "<note>"` on an idle
         open session; where the id reaches `corvus mcp`.
-- [ ] 2. **Spec first.** system/02 (table), /03 (service), /04 (`register_session`, MCP), /06 (hook identity,
+- [x] 2. **Spec first.** system/02 (table), /03 (service), /04 (`register_session`, MCP), /06 (hook identity,
       waiter, adapters bound from links), /08 (threats), /11 (defaults); accept or amend D0023 and D0024.
 - [ ] 3. Migration `0007_conversations`: `(tool, conversation_id) → agent_name`, working directory, timestamps.
       Link and carry-over written in one transaction with an audit event.
@@ -51,7 +54,8 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - [ ] 9. Stranded mail: `corvus tell` warns when the recipient has no live session; the dashboard flags agents
       with unread mail and no live session and shows each session's working directory.
 - [ ] 10. Built-in `opencode` adapter, bound from the conversation link (enabled only if 1d passed).
-- [ ] 11. `codex` adapter wakes with `codex queue` (enabled only if 1e passed; otherwise stays as is and is reported).
+- [ ] 11. *(pinned with 1e)* `codex` adapter wakes with `codex queue` (enabled only if 1e passed; otherwise stays
+      as is and is reported).
 
 ## Verification
 
@@ -78,18 +82,16 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 
 ## Open questions
 
-- **How the link is carried across `/clear`.** The hook is read-only today. Proposed: `SessionEnd reason=clear`
-  leaves a note keyed by the `claude` process id; `SessionStart source=clear` in the same process reads it and
-  makes the one write (the only hook event that writes, off the fast path). Alternative: keep the hook read-only
-  and resolve through a state file. Decide in 1c; record in system/06.
-- **Background-hook time limit.** If Claude Code kills a long-running waiter, an idle session silently becomes
-  unwakeable until its next turn. 1a decides whether the waiter needs a re-arm strategy.
+- **Resolved in step 2** (recorded in [defaults](../system/11-defaults.md) rows 60–65): the carry-over
+  mechanism (row 63), the waiter time limit (row 61). **Recommended defaults the owner has not confirmed:**
+  direct mail only wakes (row 62), `corvus up` starts watchers (row 64), unreachable agents get a warning and a
+  flag, no take-over (row 65).
+- **`clientInfo.name` Claude Code sends** at `initialize` — read it from a real session in step 4 before
+  matching on it.
+- **`opencode run` and the adapter timeout**: the command returns when the turn ends, which can be longer than
+  300 s. Does killing it cancel the turn? Check in step 10.
 - **An install command** (`corvus setup claude` editing `~/.claude/settings.json`) versus documented snippets
   only. Editing the user's settings file is the owner's call.
-- **Broadcasts.** A message to everyone would wake every session, one model turn each. Wake only for direct
-  mail and deliver the rest at the next turn?
-- **Who runs the supervisor** for OpenCode and Codex agents: `corvus up` today; should the background leader
-  start watchers for linked agents?
 - **`--fork-session`** is assumed to issue a new id (a new agent); untested.
 
 ## Unverified / deferred

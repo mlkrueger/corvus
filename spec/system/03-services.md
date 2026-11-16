@@ -112,6 +112,17 @@ Derived task flags (computed in queries, never stored): `blocked` = some depende
 - `register_session`: upsert agent, or generate a name: pick `<adjective>-<bird>` at random from the domain
   word lists, `INSERT INTO agents … ON CONFLICT DO NOTHING RETURNING`; retry up to 20 times, then append `-2`,
   `-3`, … Sets `name_generated`.
+- **Conversation link** ([D0023](../decisions/0023-agent-identity-follows-conversation.md)): `register_session`
+  may carry `conversation {tool, id, directory?}`. In the same transaction:
+  - the conversation is **linked** → the session is registered for the linked agent. A different `agent_name`
+    in the request is ignored; the returned session shows which agent it is.
+  - **not linked** → register as usual (named or generated), then insert the link; event `conversation.linked`.
+  Two live sessions on one conversation (a resume while the original still runs) are two sessions of one agent.
+- `carry_conversation(tool, from, to)`: if `from` is linked and `to` is not, link `to` to the same agent with
+  `carried_from = from`; event `conversation.carried`. Anything else is a no-op. Used when a tool issues a new
+  id for the same session (Claude Code `/clear`).
+- `agent_for_conversation(tool, id)` (read): the linked agent, if any. `conversations_for_agent(agent)` (read):
+  newest first.
 - `connect` = `register_session` + `bootstrap(agent)` + guidance, one call.
 - `end_session`: end its active claim (reason `released`), reopen the task, set `ended_at`. Idempotent.
 - **Presence** is a pure function in `corvus-domain`:

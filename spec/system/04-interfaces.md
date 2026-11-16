@@ -94,7 +94,20 @@ Handlers are async; each calls the synchronous service through the `Corvus` faca
 - Session convenience: the process remembers the session it registered and fills in `session_id` (and the
   agent name) when a tool call omits them. If `CORVUS_AGENT_NAME` is set, `register_session` without a name uses
   it instead of generating one.
-- On stdin EOF the process ends its remembered session (best effort) and exits.
+- **Conversation** ([D0023](../decisions/0023-agent-identity-follows-conversation.md)): the server, never the
+  model, fills `conversation` on `register_session` (the field is not in the tool's input schema). The tool is
+  taken from the MCP client's `clientInfo.name` at `initialize`; the id from where that tool puts it:
+
+  | Client | Conversation id | Notes |
+  |---|---|---|
+  | Claude Code | `CLAUDE_CODE_SESSION_ID` in the server's environment at start | used **only** when the client says it is Claude Code — other tools can leak that variable into the server (measured with OpenCode) |
+  | OpenCode | `_meta["ai.opencode/sessionID"]` on the tool call | one server process serves every OpenCode session |
+  | anything else | none | registers as before, with no link |
+
+  Ids are validated against the table's grammar; an invalid one is dropped (no link), never an error.
+- Because one process can serve several conversations, the remembered session is kept **per conversation id**
+  (calls with no id share one slot, as before). A call is filled only from its own conversation's slot.
+- On stdin EOF the process ends every remembered session (best effort) and exits.
 - **Launcher**: the brief's launcher script is unnecessary — the binary loads the env file itself
   ([10](10-config-ops.md#env-file)), so no secret appears in any client configuration.
 
@@ -121,6 +134,7 @@ corvus ui                              # launches (or focuses) the desktop app
 corvus jira-sync | linear-sync
 corvus admin expire-leases|end-stale|export|backup
 corvus hook                            # Claude Code inbox hook; always exits 0     (06)
+corvus hook wait                       # background waiter: exits 2 with new mail to wake an idle session (06)
 corvus watch <agent> [--exec <cmd>]    # wake supervisor            (06)
 corvus agent bind|unbind|list         # which tool an agent runs in (06)
 corvus adapter list|show|check        # agent-tool adapters        (06)

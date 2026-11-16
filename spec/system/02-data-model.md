@@ -50,6 +50,27 @@ UNIQUE (agent_name, idempotency_key) WHERE idempotency_key IS NOT NULL
 INDEX (last_seen_at) WHERE ended_at IS NULL
 ```
 
+### conversations
+```sql
+conversations (
+  tool            TEXT NOT NULL                       -- 'claude-code' | 'opencode' | 'codex' (enum in corvus-domain)
+                  CHECK (length(tool) BETWEEN 1 AND 32 AND tool NOT GLOB '*[^a-z0-9-]*'),
+  conversation_id TEXT NOT NULL                       -- the tool's own id for the conversation
+                  CHECK (length(conversation_id) BETWEEN 1 AND 128
+                     AND conversation_id NOT GLOB '*[^A-Za-z0-9_.-]*'),
+  agent_name      TEXT NOT NULL REFERENCES agents,
+  directory       TEXT,                               -- working directory when linked, if known
+  carried_from    TEXT,                               -- the previous conversation_id, when created by a clear
+  created_at      INTEGER NOT NULL,
+  PRIMARY KEY (tool, conversation_id)
+)
+INDEX (agent_name, created_at)
+```
+Which agent a tool conversation is ([D0023](../decisions/0023-agent-identity-follows-conversation.md)). Rows are
+never updated or deleted: a conversation belongs to one agent for good; an agent can have many conversations
+(resumes share one row; each clear adds one). Written by `register_session` and by the carry-over
+([03](03-services.md#sessions-and-presence)).
+
 ### tasks
 ```sql
 tasks (

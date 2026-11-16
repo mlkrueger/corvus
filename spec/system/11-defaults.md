@@ -67,6 +67,12 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 57 | Linux release builds | Cross-compiled from a container of the build machine's architecture (clang + `rust-lld` + Debian's musl headers) | Running `rustc` under amd64 emulation on Apple silicon crashed; cross-compiling is also faster |
 | 58 | macOS signing identity | The owner's self-signed personal certificate, chosen by name via `CORVUS_SIGN_IDENTITY` | Stable identity across updates on the owner's Macs; Gatekeeper still asks once on first launch |
 | 59 | Version skew on write | Its own error, `upgraded` (HTTP 503, CLI exit 7), with a "restart this process" message shown by every transport | Under `internal` the transports hid the message, so an old process gave no hint why it failed |
+| 60 | Registering a linked conversation under another name | The linked agent wins; the requested name is ignored and the result shows the agent | A conversation is one agent for good; failing the registration would strand the session |
+| 61 | Waiter time limit | `"timeout": 86400` on the hook entry | Claude Code's default (600 s) kills the waiter and leaves the session asleep; any turn re-arms it |
+| 62 | What wakes a session | Direct mail only; broadcasts wait for the session's next turn | A broadcast would cost one model turn in every open session (recommended default; owner may change it) |
+| 63 | Carry-over on `/clear` | The hook makes one database write, on `SessionStart source=clear` only | The only place both ids are known; every other hook event stays read-only |
+| 64 | Who starts watchers for OpenCode / Codex agents | `corvus up` (recommended default; owner may move it to the background leader) | No new always-on behaviour until it is asked for |
+| 65 | Sending to an unreachable agent | Delivered, with a warning; the dashboard flags it. No take-over of the name yet | Mail is never refused; adoption waits until stranded mail proves common |
 
 ## Deliberate departures from the brief's wording
 

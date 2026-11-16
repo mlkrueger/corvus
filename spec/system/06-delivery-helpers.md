@@ -29,7 +29,7 @@ Rules:
 - **Fast path**: the throttle check reads only the state file, before the database is opened. The hook does not
   start an async runtime, does not migrate, and does not initialise logging unless `CORVUS_LOG` asks for it.
   Budget: 50 ms typical; a 300 ms busy timeout on the read.
-- **Inputs**: `CORVUS_AGENT_NAME` (required; absent → exit 0 silently), `CORVUS_STATE_DIR`,
+- **Inputs**: `CORVUS_AGENT_NAME` (optional, see [Which agent](#which-agent)), `CORVUS_STATE_DIR`,
   `CORVUS_DATABASE_URL`, `CORVUS_OPERATOR_NAME`, from the environment and the env file
   ([10](10-config-ops.md#env-file)).
 - **Dedupe**: state file `$CORVUS_STATE_DIR/hook/<agent>__<claude-session-id>.json` holds
@@ -42,6 +42,74 @@ Rules:
   `catch_unwind`) exits 0 with empty output. The hook never acks. A corrupt state file is reset (silent that
   once); if the state cannot be saved the hook prints nothing, so it never re-injects the same mail every call.
 - State-file and agent-name components are validated before they are used in a path.
+
+### Which agent
+
+Decision: [D0023](../decisions/0023-agent-identity-follows-conversation.md).
+
+1. `CORVUS_AGENT_NAME`, if set (a name written into a project's hook command — the original setup).
+2. Otherwise the agent linked to the event's `session_id` (`agent_for_conversation('claude-code', id)`,
+   [03](03-services.md#sessions-and-presence)).
+3. Otherwise nothing: exit 0 silently. A session that never registered with Corvus is left alone, which is what
+   makes a **user-level** hook safe for every session on the machine.
+
+### Session events
+
+Two more events are registered so identity survives `/clear` (measured on Claude Code 2.1.325: a clear fires
+`SessionEnd` with `reason: "clear"` and the old id, then `SessionStart` with `source: "clear"` and a new id, in
+the same process):
+
+| Event | Behaviour |
+|---|---|
+| `SessionEnd`, `reason = clear` | Write `$CORVUS_STATE_DIR/hook/clear/<claude-pid>.json` = `{from: <old id>, at: <ts>}`. Other reasons: nothing. |
+| `SessionStart`, `source = clear` | If that note exists and is under 60 s old: `carry_conversation('claude-code', from, <new id>)`, then delete the note. |
+| `SessionStart`, any source | Write `$CORVUS_STATE_DIR/hook/current/<claude-pid>.json` = `{conversation: <id>}` (read by the waiter). |
+
+The carry-over is the **only** database write the hook ever makes. It opens the database for writing for that
+one event, never migrates (a schema mismatch is a silent skip), and keeps the never-fails rule. Every other
+event stays on the read-only connection. `<claude-pid>` is `CLAUDE_PID`, else the hook's parent process id (the
+hook is a direct child of `claude`).
+
+## Waiter (`corvus hook wait`)
+
+Wakes an idle Claude Code session when mail arrives. Decision:
+[D0024](../decisions/0024-wake-through-the-tools-own-channel.md). Claude Code runs a hook marked
+`"asyncRewake": true` in the background and, when it exits with code 2, starts a turn with the hook's stderr as
+the prompt. The waiter is that hook: it blocks on the inbox the way `wait_for_inbox` does (no model tokens),
+on the read-only connection.
+
+Registered on `SessionStart` and `Stop` with `"timeout": 86400` (the default is 600 s, after which Claude Code
+kills the hook and the session can no longer be woken).
+
+- **One waiter per Claude Code process**: an exclusive file lock on
+  `$CORVUS_STATE_DIR/hook/wait/<claude-pid>.lock`. Every stop starts another waiter; one that finds the lock
+  held exits 0 at once.
+- **It follows the process's current conversation** (`hook/current/<claude-pid>.json`), re-reading it each
+  tick, and resolves the agent from that ([Which agent](#which-agent)). So it survives `/clear` and an
+  in-session `/resume` without a second waiter. No agent yet → it keeps waiting and looks again every 5 s (the session may register later).
+- **Wakes for direct mail only**: an unread message addressed to the agent whose id is not in the hook's
+  shown-set. Broadcasts are shown at the session's next turn by the inbox hook, not by a wake
+  ([11](11-defaults.md) row 62).
+- **On new mail**: add the ids to the shown-set, save it, print the same text the `Stop` block prints (guidance
+  + messages) to stderr, exit 2. If the state cannot be saved it exits 0 instead — never a wake loop. A wake
+  arrives as a prompt, so `UserPromptSubmit` then runs the inbox hook; the shared shown-set stops a repeat.
+- **Exits 0, silently**, when: the session is headless (`CLAUDE_CODE_ENTRYPOINT` is set and is not `cli` — a
+  waiter keeps `claude -p` from ever exiting); its parent process is gone (checked at least once a second; a
+  killed session orphans its hooks); it receives `SIGTERM`/`SIGHUP` (Claude Code's normal shutdown and its
+  timeout); or on any error (no database, schema mismatch, bad input).
+- A wake that arrives during a turn is queued by Claude Code until the turn ends; one that arrives while the
+  user is typing leaves the typed text in place (both measured).
+
+**Reachable.** An agent is *reachable* when it has a session that has not ended, or a waiter holds the lock
+for a process whose current conversation resolves to it, or a watcher holds `watch/<agent>/lock`. `corvus tell`
+to an agent that is not reachable still delivers, and warns: the message waits until that conversation is
+resumed. The dashboard flags agents that have unread direct mail and are not reachable, and shows each
+conversation's directory ([05](05-dashboard.md)).
+
+Setup is one user-level file, `~/.claude/settings.json` ([docs](../../docs/delivery-helpers.md)):
+`corvus hook` on `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PostToolUse`, `Stop`, and `corvus hook wait`
+(with `asyncRewake` and the timeout) on `SessionStart` and `Stop`. A running session picks the entries up at its
+next event.
 
 ## Wake supervisor (`corvus watch <agent>`)
 
@@ -123,6 +191,23 @@ Rules, enforced by the one adapter runner for every tool:
 binding per agent; re-binding requires `--force`. `corvus agent list` / `unbind` manage them;
 `corvus adapter list` / `show <name>` / `check <name>` inspect adapters.
 
+### Bound from the conversation
+
+An agent with no entry in `bindings.json` is treated as bound when its newest conversation link
+([D0023](../decisions/0023-agent-identity-follows-conversation.md)) is for a tool that has an adapter of the
+same name: adapter = the tool, `{conversation}` = that conversation id. An explicit `corvus agent bind` wins.
+`claude-code` has no adapter — its sessions wake themselves through the [waiter](#waiter-corvus-hook-wait).
+`corvus up` starts a watcher for every agent bound either way.
+
+### Built-in: `opencode`
+
+- `["opencode", "run", "--session", "{conversation}", "{note}"]`; `{conversation}` pattern
+  `chars:A-Za-z0-9_:8-64` (ids look like `ses_…`). OpenCode 2.x only.
+- Measured 2026-11-16 on 2.3.0: this starts a turn in an idle session through OpenCode's shared background
+  service, and a window open on that session shows the turn live.
+- The command returns when the turn ends; its output is discarded. Behaviour on the adapter timeout is checked
+  in [plan 0012](../plans/0012-session-identity-and-wake.md).
+
 ### Built-in: `codex`
 
 - Wakes by resuming a stored Codex conversation headlessly — `codex exec resume <conversation-id> "<note>"`.
@@ -155,7 +240,8 @@ scripts ([11](11-defaults.md)). The `Makefile` has matching `up` / `down` / `sta
 | `corvus status` | database path and schema version, background leader (who holds the lock), server pid + health, watchers per agent |
 
 - "Start storage" from the brief is "create the file and migrate" — there is no storage service.
-- "Bound watchers" = every agent with a binding (`corvus agent bind`). Pid and log files live under `$CORVUS_STATE_DIR/run/`.
+- "Bound watchers" = every agent with a binding (`corvus agent bind`) or bound from its conversation
+  ([above](#bound-from-the-conversation)). Pid and log files live under `$CORVUS_STATE_DIR/run/`.
 - All three are idempotent: `up` on a running stack is a no-op that reports status.
 - Background processes are started detached (new session), with stdout/stderr to the log file.
 - None of this is required for agents; it exists for the HTTP API, the background loops and the watchers.

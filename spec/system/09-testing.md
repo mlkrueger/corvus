@@ -58,6 +58,8 @@ Every row must have at least one test that has actually been run. The owning pla
 | Housekeeping isolation; background leader hand-over | [0005](../plans/0005-housekeeping.md) |
 | Dashboard bundle has no data and no untrusted-markup sinks; hostile text renders literally | [0006](../plans/0006-dashboard-and-desktop.md) |
 | Hook dedupe / throttle / stop-loop protection / never fails | [0007](../plans/0007-delivery-helpers.md) |
+| Conversation links: register (unknown, known, none), resume, carry-over on clear, atomic with the event; MCP id sources and per-conversation memory; hook identity by conversation | [0012](../plans/0012-session-identity-and-wake.md) |
+| Waiter: wakes once per direct message, single per process, exits on parent death / headless / signal, never fails, no wake loop | [0012](../plans/0012-session-identity-and-wake.md) |
 | Wake supervisor retry, backoff, dedupe, restart; adapter runner rules; built-in `codex` adapter | [0007](../plans/0007-delivery-helpers.md) |
 | Source engine: assignment, idempotent re-poll, comment routing by task state, follow-ups, ignored accounts, re-assignment, rule scoping, manual queueing + its comment sync, partial-page abort, single flight | [0008](../plans/0008-work-sources-and-linear.md) |
 | Linear adapter against a fake Linear; filter → variables; config validation | [0008](../plans/0008-work-sources-and-linear.md) |

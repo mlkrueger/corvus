@@ -65,6 +65,10 @@ filters, compose as the operator to one agent or everyone, reply with `in_reply_
 a question); tasks board (Open / Claimed / Done / Cancelled with priority, blocked flags, holder, cancel);
 pause and theme toggle.
 
+Agents & sessions also shows, per agent, its tool and conversation directory and a **not reachable** flag when
+it has unread direct mail and nothing can deliver it ([06](06-delivery-helpers.md#waiter-corvus-hook-wait),
+plan 0012).
+
 ### Sources panel
 
 The brief's "Jira panel" is generalised: one **Sources** panel with a tab per enabled source (Linear, Jira),
