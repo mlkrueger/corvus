@@ -6,4 +6,9 @@ export type PostMessage = { thread_id: string, from: string, body: string, type:
 /**
  * Recipient agent; omit to broadcast to everyone.
  */
-to: string | null, in_reply_to: number | null, artifacts: Array<ArtifactInput>, idempotency_key: string | null, session_id: string | null, };
+to: string | null, in_reply_to: number | null, artifacts: Array<ArtifactInput>, idempotency_key: string | null, session_id: string | null, 
+/**
+ * Wake idle sessions with this broadcast. Operator only; not offered to agents (absent from the tool
+ * schema).
+ */
+wake: boolean, };

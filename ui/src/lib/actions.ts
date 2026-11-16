@@ -19,8 +19,17 @@ export async function sendDirect(operator: string, to: string, body: string, typ
   await request('POST', '/api/messages/direct', req);
 }
 
-/** Broadcast needs a thread: create or reuse the operator's keyed thread, then post without `to`. */
-export async function sendBroadcast(operator: string, body: string, type: MessageType): Promise<void> {
+/**
+ * Broadcast needs a thread: create or reuse the operator's keyed thread, then post without `to`.
+ * `wake` also wakes idle sessions now (one model turn in each); without it the broadcast waits for each
+ * session's next turn.
+ */
+export async function sendBroadcast(
+  operator: string,
+  body: string,
+  type: MessageType,
+  wake = false,
+): Promise<void> {
   const threadReq: CreateThread = {
     creator: operator,
     title: BROADCAST_THREAD_TITLE,
@@ -39,6 +48,7 @@ export async function sendBroadcast(operator: string, body: string, type: Messag
     artifacts: [],
     idempotency_key: newKey(),
     session_id: null,
+    wake,
   };
   await request('POST', '/api/messages', req);
 }
@@ -64,6 +74,7 @@ export async function sendReply(
     artifacts: [],
     idempotency_key: newKey(),
     session_id: null,
+    wake: false,
   };
   await request('POST', '/api/messages', req);
 }

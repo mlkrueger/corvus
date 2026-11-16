@@ -3,4 +3,12 @@ import type { ArtifactView } from "./ArtifactView";
 import type { MessageType } from "./MessageType";
 import type { Timestamp } from "./Timestamp";
 
-export type MessageView = { id: number, thread_id: string, sender: string, recipient: string | null, type: MessageType, in_reply_to: number | null, body: string, session_id: string | null, created_at: Timestamp, artifacts: Array<ArtifactView>, };
+export type MessageView = { id: number, thread_id: string, sender: string, recipient: string | null, type: MessageType, in_reply_to: number | null, body: string, session_id: string | null, created_at: Timestamp, artifacts: Array<ArtifactView>, 
+/**
+ * A broadcast that wakes idle sessions.
+ */
+wake: boolean, 
+/**
+ * The original message, when this is a copy the operator reassigned.
+ */
+reassigned_from: number | null, };

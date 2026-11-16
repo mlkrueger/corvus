@@ -76,6 +76,7 @@ fn seeded(repo: Option<&Path>) -> (TestDb, Services) {
             artifacts: vec![],
             idempotency_key: None,
             session_id: None,
+            wake: false,
         })
         .unwrap();
     for (scope, r) in [

@@ -64,6 +64,7 @@ impl M {
             artifacts: vec![],
             idempotency_key: None,
             session_id: None,
+            wake: false,
         })
     }
     fn inbox(&self, agent: &str) -> Vec<i64> {
@@ -310,6 +311,7 @@ fn post_validation_and_not_found() {
         artifacts: vec![],
         idempotency_key: None,
         session_id: None,
+        wake: false,
     };
     for bad in [
         PostMessage {
@@ -372,6 +374,7 @@ fn message_event_has_no_body_and_idempotent_replay() {
         artifacts: vec![],
         idempotency_key: Some("k".into()),
         session_id: None,
+        wake: false,
     };
     let x = m.s.muninn().post_message(&p("SECRET-BODY")).unwrap();
     let y = m.s.muninn().post_message(&p("retry wording")).unwrap();
@@ -920,7 +923,7 @@ fn stats_and_overview_match_a_seeded_scenario() {
     );
     assert!(!o.events.is_empty() && o.events.len() <= 100);
     assert_eq!(o.thresholds.lease_seconds, 900);
-    assert_eq!(m.s.overview().health().unwrap().schema_version, 7);
+    assert_eq!(m.s.overview().health().unwrap().schema_version, 8);
 }
 
 /// Runs `f` on 16 threads (each with its own database handle), released together; returns the results.
@@ -972,6 +975,7 @@ fn concurrent_idempotent_creates_make_one_row_and_one_event() {
                 artifacts: vec![],
                 idempotency_key: Some("k".into()),
                 session_id: None,
+                wake: false,
             })
             .unwrap()
             .id
@@ -1051,4 +1055,58 @@ fn hint_pruning_keeps_the_newest_rows() {
             .unwrap(),
         0
     );
+}
+
+// ---------- waking broadcasts (plan 0012, defaults #62) ----------
+
+fn post_wake(m: &M, thread: &str, from: &str, to: Option<&str>) -> Result<MessageView, CorvusError> {
+    m.s.muninn().post_message(&PostMessage {
+        thread_id: thread.into(),
+        from: from.into(),
+        body: "everyone, stop and read this".into(),
+        kind: MessageType::Note,
+        to: to.map(str::to_owned),
+        in_reply_to: None,
+        artifacts: Vec::new(),
+        idempotency_key: None,
+        session_id: None,
+        wake: true,
+    })
+}
+
+#[test]
+fn only_the_operators_broadcasts_can_wake() {
+    let m = M::new();
+    m.session("alice");
+    m.session("bob");
+    let thread = m.thread("operator", "Operator broadcasts");
+
+    let woke = post_wake(&m, &thread, "operator", None).unwrap();
+    assert!(woke.wake);
+    assert_eq!(woke.recipient, None);
+    assert_eq!(woke.reassigned_from, None);
+
+    // Not from an agent, and not on a direct message even from the operator.
+    for (from, to) in [("alice", None), ("operator", Some("bob")), ("alice", Some("bob"))] {
+        let err = post_wake(&m, &thread, from, to).unwrap_err();
+        assert!(
+            matches!(err, CorvusError::Validation(_)),
+            "{from} -> {to:?}: {err}"
+        );
+    }
+    assert_eq!(count(&m.t.db, "messages"), 1, "the refused ones wrote nothing");
+
+    // An ordinary message does not wake, and reads back that way.
+    let plain = m.post(&thread, "operator", None, MessageType::Note, "fyi");
+    assert!(!plain.wake);
+    let inbox =
+        m.s.muninn()
+            .read_inbox(&ReadInbox {
+                agent: "alice".into(),
+                limit: None,
+                after_id: None,
+            })
+            .unwrap();
+    let flags: Vec<bool> = inbox.iter().map(|x| x.wake).collect();
+    assert_eq!(flags, vec![true, false]);
 }

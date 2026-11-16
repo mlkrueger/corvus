@@ -119,3 +119,56 @@ fn messaging_memory_and_stats_commands() {
     let e = home.corvus().args(["admin", "export"]).output().unwrap();
     assert_eq!(e.status.code(), Some(2), "no export repo configured");
 }
+
+// ---------- `corvus tell --all [--wake]` (plan 0012) ----------
+
+#[test]
+fn tell_all_broadcasts_and_wake_marks_it() {
+    let home = common::Home::new();
+    let run = |args: &[&str]| home.corvus().args(args).output().unwrap();
+    for agent in ["alice", "bob"] {
+        common::json_stdout(&run(&["session", "register", "--agent", agent]));
+    }
+
+    let plain = common::json_stdout(&run(&["tell", "--all", "standup in five"]));
+    assert_eq!(plain["recipient"], serde_json::Value::Null);
+    assert_eq!(plain["wake"], false);
+    assert_eq!(plain["sender"], "operator");
+
+    let woke = common::json_stdout(&run(&["tell", "--all", "--wake", "stop: the build is red"]));
+    assert_eq!(woke["wake"], true);
+    assert_eq!(woke["thread_id"], plain["thread_id"], "one broadcast thread");
+
+    // Everyone has both in their inbox.
+    for agent in ["alice", "bob"] {
+        let inbox = common::json_stdout(&run(&["inbox", "read", agent]));
+        let bodies: Vec<&str> = inbox
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["body"].as_str().unwrap())
+            .collect();
+        assert_eq!(bodies, ["standup in five", "stop: the build is red"], "{agent}");
+    }
+
+    // A direct message still works, and the argument shapes are checked.
+    let direct = common::json_stdout(&run(&["tell", "alice", "just you"]));
+    assert_eq!(direct["recipient"], "alice");
+    assert_eq!(direct["wake"], false);
+    for bad in [
+        &["tell", "--all", "alice", "two words"][..],
+        &["tell", "only-one-word"][..],
+        &["tell", "--wake", "alice", "not a broadcast"][..],
+        &[
+            "tell",
+            "--all",
+            "--wake",
+            "--from",
+            "alice",
+            "agents cannot wake everyone",
+        ][..],
+    ] {
+        let out = run(bad);
+        assert!(!out.status.success(), "{bad:?} should fail");
+    }
+}

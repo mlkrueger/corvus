@@ -65,10 +65,15 @@ const EMBEDDED: &[(i64, &str, &str)] = &[
         "conversations",
         include_str!("../../migrations/0007_conversations.sql"),
     ),
+    (
+        8,
+        "wake_and_reassign",
+        include_str!("../../migrations/0008_wake_and_reassign.sql"),
+    ),
 ];
 
 /// The schema version this binary expects (the highest embedded migration).
-pub const SCHEMA_VERSION: i64 = 7;
+pub const SCHEMA_VERSION: i64 = 8;
 
 /// The embedded migrations.
 pub fn embedded() -> Vec<Migration> {

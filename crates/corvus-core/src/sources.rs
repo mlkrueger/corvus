@@ -692,6 +692,7 @@ fn reconcile_ticket(
                 &[],
                 None,
                 None,
+                false,
                 now,
             )?;
             store::update_link_mark(tx, l.id, &t.updated_stamp, hwm, &ids)?;

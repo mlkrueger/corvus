@@ -173,6 +173,12 @@ impl Muninn<'_> {
         let arts = artifact_inputs(&req.artifacts)?;
         let key = idempotency_key(&req.idempotency_key)?;
         let session = req.session_id.as_deref().map(session_id).transpose()?;
+        if req.wake && (to.is_some() || from != *self.s.operator_name()) {
+            // Waking every open session costs a model turn in each: a deliberate, operator-only act.
+            return Err(CorvusError::Validation(
+                "wake: only the operator's broadcasts can wake sessions".into(),
+            ));
+        }
         let now = self.s.now();
         self.s.db().write(|tx| {
             post_in_tx(
@@ -186,6 +192,7 @@ impl Muninn<'_> {
                 &arts,
                 key.as_deref(),
                 session.as_ref(),
+                req.wake,
                 now,
             )
         })
@@ -237,6 +244,7 @@ impl Muninn<'_> {
                 &[],
                 key.as_deref(),
                 None,
+                false,
                 now,
             )
         })
@@ -584,6 +592,7 @@ pub(crate) fn post_in_tx(
     arts: &[(ArtifactRef, String)],
     key: Option<&str>,
     session: Option<&corvus_domain::SessionId>,
+    wake: bool,
     now: i64,
 ) -> Result<MessageView> {
     touch_as(tx, session, from, now)?;
@@ -624,6 +633,8 @@ pub(crate) fn post_in_tx(
             body,
             session_id: sid.as_deref(),
             idempotency_key: key,
+            wake,
+            reassigned_from: None,
         },
         now,
     )?;

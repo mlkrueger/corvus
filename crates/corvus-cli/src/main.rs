@@ -19,7 +19,7 @@ const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (commit ",
     env!("CORVUS_GIT_COMMIT"),
-    ", schema 7)"
+    ", schema 8)"
 );
 
 #[derive(Parser, Debug)]
@@ -61,10 +61,18 @@ enum Command {
         #[command(subcommand)]
         command: MsgCommand,
     },
-    /// Send a direct message as the operator (CORVUS_OPERATOR_NAME) unless --from is given.
+    /// Send a message as the operator (CORVUS_OPERATOR_NAME) unless --from is given:
+    /// `corvus tell <agent> <message>` or `corvus tell --all [--wake] <message>`.
     Tell {
-        agent: String,
-        message: String,
+        /// `<agent> <message>`, or just `<message>` with --all.
+        #[arg(num_args = 1..=2, required = true, value_names = ["AGENT", "MESSAGE"])]
+        words: Vec<String>,
+        /// Broadcast to everyone. Shown at each session's next turn.
+        #[arg(long)]
+        all: bool,
+        /// With --all: also wake idle sessions now (one model turn in each). Operator only.
+        #[arg(long, requires = "all")]
+        wake: bool,
         #[arg(long)]
         from: Option<String>,
         #[arg(long = "type", default_value = "note")]
@@ -411,18 +419,53 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         }
         Command::Msg { command } => msg_cmd(&services(&config)?, &config, command),
         Command::Tell {
-            agent,
-            message,
+            words,
+            all,
+            wake,
             from,
             kind,
-        } => json(services(&config)?.muninn().send_direct(&api::SendDirect {
-            from: from.unwrap_or_else(|| config.operator_name.to_string()),
-            to: agent,
-            body: message,
-            kind: kind.parse()?,
-            idempotency_key: None,
-            session_id: None,
-        })),
+        } => {
+            let from = from.unwrap_or_else(|| config.operator_name.to_string());
+            let kind = kind.parse()?;
+            let services = services(&config)?;
+            match (all, words.as_slice()) {
+                (true, [message]) => {
+                    let thread = services.muninn().create_thread(&api::CreateThread {
+                        creator: from.clone(),
+                        title: api::BROADCAST_THREAD_TITLE.to_owned(),
+                        task_id: None,
+                        key: Some(api::BROADCAST_THREAD_KEY.to_owned()),
+                        session_id: None,
+                    })?;
+                    json(services.muninn().post_message(&api::PostMessage {
+                        thread_id: thread.id,
+                        from,
+                        body: message.clone(),
+                        kind,
+                        to: None,
+                        in_reply_to: None,
+                        artifacts: Vec::new(),
+                        idempotency_key: None,
+                        session_id: None,
+                        wake,
+                    }))
+                }
+                (false, [agent, message]) => json(services.muninn().send_direct(&api::SendDirect {
+                    from,
+                    to: agent.clone(),
+                    body: message.clone(),
+                    kind,
+                    idempotency_key: None,
+                    session_id: None,
+                })),
+                (true, _) => Err(CorvusError::Validation(
+                    "tell --all takes one argument: the message".into(),
+                )),
+                (false, _) => Err(CorvusError::Validation(
+                    "tell takes an agent and a message (or --all and a message)".into(),
+                )),
+            }
+        }
         Command::Inbox { command } => inbox_cmd(services(&config)?, &config, command),
         Command::Digest { command } => digest_cmd(&services(&config)?, &config, command),
         Command::Decision { command } => decision_cmd(&services(&config)?, &config, command),
@@ -748,6 +791,7 @@ fn msg_cmd(s: &Services, config: &Config, c: MsgCommand) -> Result<Value, Corvus
             artifacts: Vec::new(),
             idempotency_key,
             session_id: None,
+            wake: false,
         })),
     }
 }

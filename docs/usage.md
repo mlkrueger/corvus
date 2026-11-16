@@ -301,7 +301,7 @@ corvus serve &
 
 # health
 curl -s -H "Authorization: Bearer $CORVUS_API_TOKEN" http://127.0.0.1:8765/api/health
-# {"ok":true,"schema_version":7}
+# {"ok":true,"schema_version":8}
 
 # create a task
 curl -s -X POST http://127.0.0.1:8765/api/tasks \

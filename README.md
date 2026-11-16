@@ -39,7 +39,7 @@ is needed. An optional desktop app is the dashboard.
 3. Check it:
 
    ```sh
-   corvus health                                         # {"ok":true,"schema_version":7}
+   corvus health                                         # {"ok":true,"schema_version":8}
    corvus session list                                   # agents connected right now (--all includes ended ones)
    corvus session register --agent my-agent              # or let an agent connect; messages need a known agent
    corvus tell my-agent "please look at the failing test"

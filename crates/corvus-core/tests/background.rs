@@ -60,6 +60,7 @@ fn seed(t: &TestDb, s: &Services) {
                 artifacts: vec![],
                 idempotency_key: None,
                 session_id: None,
+                wake: false,
             })
             .unwrap();
     }

@@ -327,7 +327,16 @@ pub struct PostMessage {
     pub idempotency_key: Option<String>,
     #[serde(default)]
     pub session_id: Option<String>,
+    /// Wake idle sessions with this broadcast. Operator only; not offered to agents (absent from the tool
+    /// schema).
+    #[serde(default)]
+    #[schemars(skip)]
+    pub wake: bool,
 }
+
+/// The keyed thread the operator's broadcasts go to (the dashboard and `corvus tell --all` share it).
+pub const BROADCAST_THREAD_KEY: &str = "operator-broadcast";
+pub const BROADCAST_THREAD_TITLE: &str = "Operator broadcasts";
 
 fn default_message_type() -> MessageType {
     MessageType::Note
@@ -347,6 +356,10 @@ pub struct MessageView {
     pub session_id: Option<String>,
     pub created_at: Timestamp,
     pub artifacts: Vec<ArtifactView>,
+    /// A broadcast that wakes idle sessions.
+    pub wake: bool,
+    /// The original message, when this is a copy the operator reassigned.
+    pub reassigned_from: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]

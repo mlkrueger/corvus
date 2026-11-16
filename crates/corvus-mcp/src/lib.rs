@@ -517,6 +517,8 @@ impl CorvusMcp {
                 self.svc(move |s| s.huginn().cancel_task(&task, &req)).await
             }
             "post_message" => {
+                // Waking every session is the operator's call, never an agent's.
+                map.remove("wake");
                 let req: PostMessage = parse(map)?;
                 self.svc(move |s| s.muninn().post_message(&req)).await
             }

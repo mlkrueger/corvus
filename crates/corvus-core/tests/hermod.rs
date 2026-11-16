@@ -30,6 +30,7 @@ fn post(s: &Services, thread: &str, to: Option<&str>, body: &str) -> i64 {
             artifacts: vec![],
             idempotency_key: None,
             session_id: None,
+            wake: false,
         })
         .unwrap()
         .id

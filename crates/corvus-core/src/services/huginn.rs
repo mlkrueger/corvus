@@ -381,6 +381,8 @@ impl Huginn<'_> {
                             body: &body,
                             session_id: None,
                             idempotency_key: None,
+                            wake: false,
+                            reassigned_from: None,
                         },
                         now,
                     )?);

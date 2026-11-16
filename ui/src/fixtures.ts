@@ -73,6 +73,8 @@ export function message(over: Partial<MessageListItem> = {}): MessageListItem {
     body: 'hello',
     session_id: null,
     created_at: iso(-60),
+    wake: false,
+    reassigned_from: null,
     artifacts: [],
     ...over,
   };

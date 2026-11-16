@@ -640,3 +640,34 @@ async fn an_unusable_conversation_id_registers_without_a_link() {
     assert_eq!(count(&t.db, "conversations"), 0);
     let _ = c.close().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agent_cannot_send_a_waking_broadcast() {
+    let t = TestDb::new();
+    let (mut c, _) = Client::start(&t, None).await;
+    c.ok(
+        "register_session",
+        json!({"agent_name": "alpha", "client_name": "test"}),
+    )
+    .await;
+    let tools = c.request("tools/list", json!({})).await;
+    let post = tools["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["name"] == "post_message")
+        .unwrap();
+    assert!(post["inputSchema"]["properties"].get("wake").is_none(), "{post}");
+
+    let thread = c.ok("create_thread", json!({"title": "t"})).await;
+    // Sent anyway, the flag is dropped: the message is an ordinary broadcast.
+    let msg = c
+        .ok(
+            "post_message",
+            json!({"thread_id": thread["id"], "body": "wake up, all of you", "wake": true}),
+        )
+        .await;
+    assert_eq!(msg["wake"], json!(false), "{msg}");
+    assert_eq!(msg["recipient"], Value::Null);
+    c.close().await.unwrap();
+}

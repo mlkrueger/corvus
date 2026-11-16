@@ -16,6 +16,10 @@ pub struct NewMessage<'a> {
     pub body: &'a str,
     pub session_id: Option<&'a str>,
     pub idempotency_key: Option<&'a str>,
+    /// A broadcast that wakes idle sessions.
+    pub wake: bool,
+    /// The original message, when this is a reassigned copy.
+    pub reassigned_from: Option<i64>,
 }
 
 /// Inserts a message (its hint is written by trigger). Returns the new id.
@@ -23,8 +27,8 @@ pub fn insert(tx: &WriteTx<'_>, m: &NewMessage<'_>, now: i64) -> Result<i64> {
     tx.sql_mut()
         .execute(
             "INSERT INTO messages (thread_id, sender, recipient, type, in_reply_to, body, session_id, idempotency_key,
-                                   created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                                   created_at, wake, reassigned_from)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 m.thread_id,
                 m.sender,
@@ -34,7 +38,9 @@ pub fn insert(tx: &WriteTx<'_>, m: &NewMessage<'_>, now: i64) -> Result<i64> {
                 m.body,
                 m.session_id,
                 m.idempotency_key,
-                now
+                now,
+                m.wake,
+                m.reassigned_from
             ],
         )
         .db()?;
@@ -52,11 +58,13 @@ pub struct MessageRow {
     pub body: String,
     pub session_id: Option<String>,
     pub created_at: i64,
+    pub wake: bool,
+    pub reassigned_from: Option<i64>,
 }
 
 const SELECT: &str =
     "SELECT m.id, m.thread_id, m.sender, m.recipient, m.type, m.in_reply_to, m.body, m.session_id,
-        m.created_at FROM messages m";
+        m.created_at, m.wake, m.reassigned_from FROM messages m";
 
 fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MessageRow> {
     Ok(MessageRow {
@@ -69,6 +77,8 @@ fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MessageRow> {
         body: r.get(6)?,
         session_id: r.get(7)?,
         created_at: r.get(8)?,
+        wake: r.get(9)?,
+        reassigned_from: r.get(10)?,
     })
 }
 

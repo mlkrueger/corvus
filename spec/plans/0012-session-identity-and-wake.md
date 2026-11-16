@@ -46,7 +46,7 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - [x] 5. `corvus hook` resolves its agent by conversation when `CORVUS_AGENT_NAME` is absent; no link → silent
       exit 0. Explicit name still wins.
 - [x] 6. `/clear` carry-over, by the mechanism chosen in 1c.
-- [ ] 6b. Migration `0008`: `messages.wake`, `messages.reassigned_from`, `receipts.kind` / `reassigned_to`.
+- [x] 6b. Migration `0008`: `messages.wake`, `messages.reassigned_from`, `receipts.kind` / `reassigned_to`.
       `post_message` accepts `wake` on an operator broadcast only; `corvus tell --all [--wake]`.
 - [ ] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
       on the inbox for mail not in the shown-set; exit 2 with the formatted messages on stderr and the shown-set

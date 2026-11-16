@@ -153,6 +153,8 @@ pub(crate) fn message(
         body: m.body,
         session_id: m.session_id,
         created_at: ts(m.created_at),
+        wake: m.wake,
+        reassigned_from: m.reassigned_from,
     })
 }
 

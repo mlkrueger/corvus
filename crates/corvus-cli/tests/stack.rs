@@ -81,7 +81,7 @@ fn up_without_a_token_starts_watchers_only() {
     assert_eq!(up["server"]["enabled"], false);
     assert!(up["notes"][0].as_str().unwrap().contains("HTTP API disabled"));
     assert_eq!(up["watchers"][0]["running"], true);
-    assert_eq!(up["schema_version"], 7);
+    assert_eq!(up["schema_version"], 8);
     let down = s.run(false, &["down"]);
     assert_eq!(down["stopped"], serde_json::json!(["watch-bob"]));
     assert_eq!(s.run(false, &["status"])["watchers"][0]["running"], false);
