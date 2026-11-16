@@ -4,6 +4,7 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
+use corvus_core::delivery::claude_setup;
 use serde::Serialize;
 use serde_json::json;
 
@@ -62,16 +63,10 @@ pub fn mcp_snippet(corvus: &str) -> String {
 }
 
 pub fn hook_snippet(corvus: &str) -> String {
-    // Claude Code hook contract (system/06): UserPromptSubmit, PostToolUse and Stop. Settings `env` is not
-    // documented to reach hooks, so the agent name is set in the command itself; replace YOUR-AGENT-NAME.
-    let command = format!("CORVUS_AGENT_NAME=YOUR-AGENT-NAME {corvus} hook");
-    let hook = json!([{ "type": "command", "command": command }]);
-    let v = json!({ "hooks": {
-        "UserPromptSubmit": [{ "hooks": hook.clone() }],
-        "PostToolUse": [{ "matcher": "*", "hooks": hook.clone() }],
-        "Stop": [{ "hooks": hook }],
-    } });
-    serde_json::to_string_pretty(&v).unwrap_or_default()
+    // The same entries `corvus setup claude` writes (system/06): the inbox hook and the waiter. A session's
+    // agent comes from its conversation link, so there is no name to fill in.
+    let program = claude_setup::hook_program(Path::new(corvus)).unwrap_or_else(|_| "corvus".to_owned());
+    claude_setup::snippet(&program)
 }
 
 /// Everything `app_info` reports, from explicit inputs (tests pass temp directories).
@@ -238,11 +233,15 @@ mod tests {
             sibling.to_str().expect("utf8")
         );
         assert_eq!(mcp["mcpServers"]["corvus"]["args"], json!(["mcp"]));
-        assert!(info.hook_snippet.contains(" hook"));
-        for event in ["UserPromptSubmit", "PostToolUse", "Stop"] {
-            assert!(info.hook_snippet.contains(event), "{event}");
+        let hooks: serde_json::Value = serde_json::from_str(&info.hook_snippet).expect("json");
+        for event in claude_setup::HOOK_EVENTS {
+            assert_eq!(
+                hooks["hooks"][event][0]["hooks"][0]["command"],
+                format!("{} hook", sibling.to_str().expect("utf8")),
+                "{event}"
+            );
         }
-        assert!(info.hook_snippet.contains("CORVUS_AGENT_NAME="));
+        assert_eq!(hooks["hooks"]["Stop"][0]["hooks"][1]["asyncRewake"], true);
 
         let info = gather(None, Some(&path), Some(&home));
         assert_eq!(info.corvus_path.as_deref(), path_dir.join("corvus").to_str());

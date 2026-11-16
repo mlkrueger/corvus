@@ -188,6 +188,8 @@ Described in [delivery-helpers.md](delivery-helpers.md); listed here for complet
 | Command | What it does |
 |---|---|
 | `corvus hook` | The Claude Code inbox hook. Reads the hook event on stdin, prints context or nothing. Never fails: always exits 0, no config errors, no logging unless `CORVUS_LOG` is set. |
+| `corvus hook wait` | The background waiter Claude Code runs as an `asyncRewake` hook: blocks until mail arrives for the session's agent, then exits 2 with the mail on stderr, which wakes the idle session. Exits 0 silently otherwise. |
+| `corvus setup claude` | Adds the two hooks above to `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`). Prints the change on stderr and asks before writing; leaves `settings.json.corvus-backup`. `--remove` (take the Corvus entries out), `--yes` (do not ask), `--file <PATH>` (another settings file). Prints `{"file", "changed", ...}`. |
 | `corvus watch <AGENT>` | Waits for mail for `AGENT` and wakes it or prints it. `--print` (print unread messages as JSON once there are any, then exit; the default for an unbound agent), `--timeout <SECONDS>` (how long a wake command may run, default 300 or the adapter's own), `--exec <CMD> [ARGS...]` (run a command per batch of new mail, never through a shell; must come last). |
 | `corvus agent bind <AGENT>` | `--adapter <NAME>` (required), `--conversation <ID>` (the tool's conversation id, if its adapter needs one), `--force` (replace an existing binding). |
 | `corvus agent unbind <AGENT>` / `corvus agent list` | Remove a binding / list bindings. |

@@ -65,6 +65,11 @@
     <h3>MCP configuration</h3>
     <pre class="snippet">{info.mcp_snippet}</pre>
     <h3>Hook configuration</h3>
+    <p class="muted">
+      For Claude Code: shows new mail and wakes an idle session. Run <code>corvus setup claude</code> to add this to
+      <code>~/.claude/settings.json</code>, or paste it yourself. Allow the Corvus tools (<code>mcp__corvus</code>) so a
+      woken session can answer.
+    </p>
     <pre class="snippet">{info.hook_snippet}</pre>
   {:else if loadError}
     <p class="empty" role="status">

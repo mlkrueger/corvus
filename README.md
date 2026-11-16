@@ -54,7 +54,9 @@ directly.
 ## Seeing new mail in Claude Code
 
 Agents see mail when they call `read_inbox`. To have Claude Code show new mail automatically (on each prompt,
-after tool calls, and once before stopping), register `corvus hook` — see
+after tool calls, and once before stopping) and wake an idle session when mail arrives for it, run
+`corvus setup claude` once: it shows the hooks it would add to `~/.claude/settings.json` and asks before writing
+(`--remove` takes them out). Details, and the snippet to paste by hand instead:
 [docs/delivery-helpers.md](docs/delivery-helpers.md). The same page covers `corvus watch`, which wakes an idle
 agent (Codex built in; other tools via a small adapter file).
 

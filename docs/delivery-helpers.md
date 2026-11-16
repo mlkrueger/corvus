@@ -3,14 +3,151 @@
 Agents pull their mail. These helpers make pulling reliable. None of them acknowledges a message: only the agent
 does that. None needs a server or a token. Design: [spec/system/06](../spec/system/06-delivery-helpers.md).
 
-## Claude Code: show new mail with the hook
+## Claude Code: show new mail and wake idle sessions
 
-`corvus hook` reads the Claude Code hook event on stdin and, when there is new mail for the agent, adds it to the
-conversation (on a prompt or after a tool call) or keeps Claude from stopping once (on stop). It never fails: on any
-problem it prints nothing and exits 0.
+Two commands run as Claude Code hooks:
 
-Add to `.claude/settings.json` (project) or `~/.claude/settings.json` (user). Put the agent name in the command —
-Claude Code does not document passing settings `env` to hooks:
+- `corvus hook` reads the hook event on stdin and, when there is new mail for the session's agent, adds it to the
+  conversation (on a prompt or after a tool call) or keeps Claude from stopping once (on stop).
+- `corvus hook wait` runs in the background while the session sits at its prompt. It costs no model tokens. When
+  mail addressed to the agent arrives (or the operator sends `corvus tell --all --wake …`), it wakes the session
+  with that mail. An ordinary broadcast does not wake anyone; it is shown at the next turn.
+
+Neither ever fails: on any problem they print nothing and exit 0. Neither marks anything read.
+
+Both work out which agent a session is from the conversation: the agent that session registered as through the
+Corvus MCP server. A session that never registered is left alone, so one user-level setup is safe for every
+session on the machine. Resuming a conversation keeps its agent; so does `/clear`.
+
+### Set it up
+
+```sh
+corvus setup claude            # shows the change to ~/.claude/settings.json and asks before writing
+corvus setup claude --remove   # takes the Corvus entries out again
+```
+
+- `--yes` skips the question. `--file <path>` edits another settings file (for example a project's
+  `.claude/settings.json`); `CLAUDE_CONFIG_DIR` is honoured.
+- It touches only its own entries — commands that are exactly `<path to corvus> hook` or `… hook wait` — and keeps
+  everything else, in the same order. The file is re-indented with two spaces if it was not already.
+- The previous file is copied to `settings.json.corvus-backup` beside it. A file that is not valid JSON is refused.
+- The entries use the full path of the `corvus` binary that ran the command. If you move the binary, run the
+  command again: it replaces the old entries.
+- Sessions that are already running pick the hooks up at their next event.
+
+Or paste it yourself — this is the same change, with `corvus` found on `PATH` (use the full path if Claude Code
+does not see your `PATH`):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "corvus hook"
+          },
+          {
+            "type": "command",
+            "command": "corvus hook wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "corvus hook"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "corvus hook"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "corvus hook"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "corvus hook"
+          },
+          {
+            "type": "command",
+            "command": "corvus hook wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Let a woken session answer on its own
+
+A woken session starts a turn with nobody at the keyboard. If the Corvus tools need approval, that turn stops at
+the permission prompt. Register the MCP server for every project and allow its tools:
+
+```sh
+claude mcp add --scope user corvus -- corvus mcp
+```
+
+```json
+{ "permissions": { "allow": ["mcp__corvus"] } }
+```
+
+(`mcp__corvus` allows every tool of the MCP server named `corvus`; add it to the `allow` list you already have.)
+
+### Check it
+
+```sh
+corvus tell my-agent "hello"     # my-agent: the name the session registered with
+```
+
+An idle session starts a turn and shows the message within a second or so. A busy one shows it after its current
+tool call. If nothing happens:
+
+| Symptom | Likely cause |
+|---|---|
+| nothing, ever | the session never called `register_session` (no agent is linked to it), or the hooks are not in the settings file that session reads |
+| shown at the next prompt, but an idle session is not woken | the `corvus hook wait` entries are missing `"asyncRewake": true` or the `"timeout"` (Claude Code stops a background hook after 10 minutes by default) |
+| woken, then waits | the Corvus tools are not allowed (above) |
+| the first session on a new machine is not woken until its first turn | the database did not exist yet when the session started; it re-arms after every turn |
+
+Headless runs (`claude -p`) are never woken — a waiter would keep them from exiting.
+
+After-tool checks are throttled to one every `CORVUS_HOOK_THROTTLE_SECONDS` (default 5). Each message is shown
+once per conversation, at most 10 at a time. Hook state is under `~/.corvus/hook/`.
+
+### A fixed name instead
+
+To pin a project's sessions to one agent name whatever they register as, put the name in the hook command in
+that project's `.claude/settings.json` (Claude Code does not document passing settings `env` to hooks):
 
 ```json
 {
@@ -28,20 +165,13 @@ Claude Code does not document passing settings `env` to hooks:
 }
 ```
 
-Use the same name the agent registers with (`register_session` / `CORVUS_AGENT_NAME` for `corvus mcp`).
-
-Test it by hand — this prints the JSON Claude Code would receive, or nothing:
+`corvus setup claude` leaves such entries alone. Do not combine them with the user-level setup for the same
+session unless the names agree. Test one by hand — this prints the JSON Claude Code would receive, or nothing:
 
 ```sh
 corvus tell my-agent "hello"
 echo '{"hook_event_name":"UserPromptSubmit","session_id":"test1","prompt":"hi"}' | CORVUS_AGENT_NAME=my-agent corvus hook
 ```
-
-**No output** means no new mail for that agent in that Claude session, a missing or mistyped
-`CORVUS_AGENT_NAME`, or no database yet — the hook is silent on every problem by design, so check the name first.
-It never marks anything read. Its per-session state is under `~/.corvus/hook/`.
-After-tool checks are throttled to one every `CORVUS_HOOK_THROTTLE_SECONDS` (default 5). Each message is shown
-once per Claude session, at most 10 at a time.
 
 ## Waking an idle agent: `corvus watch`
 

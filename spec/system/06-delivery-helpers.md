@@ -111,10 +111,23 @@ conversation's directory, and offers **Reassign** to move that mail to another a
 `UserPromptSubmit`, `PostToolUse`, `Stop`, and `corvus hook wait` (with `asyncRewake` and the timeout) on
 `SessionStart` and `Stop`. A running session picks the entries up at its next event. Two ways, same result:
 
-- `corvus setup claude` prints the exact change and asks before writing; `--yes` skips the question,
-  `--remove` takes the entries out again. It edits only its own entries (recognised by their command), keeps
-  everything else in the file byte-for-byte where it can, writes through a temp file, and leaves a
-  `settings.json.corvus-backup` beside it.
+- `corvus setup claude` prints the exact change (a line diff, on stderr) and asks before writing; `--yes` skips
+  the question, `--remove` takes the entries out again, `--file <path>` edits another settings file (a
+  project's), and `CLAUDE_CONFIG_DIR` moves the default as it does for Claude Code.
+  - It edits only its own entries, recognised by their command: a program named `corvus` followed by exactly
+    `hook` or `hook wait`, with nothing in front. A hand-written `CORVUS_AGENT_NAME=x corvus hook` is not its
+    entry and stays.
+  - The entries use the **absolute path of the binary that ran the command** (double-quoted if it needs it):
+    hooks do not reliably see the user's `PATH`. Running it again after the binary moved replaces them.
+  - Everything else keeps its content and key order; the file is printed with two-space indentation. A file
+    that already has the entries is not written at all. Removing gives back what was there.
+  - It refuses a file that is not valid JSON or whose `hooks` has an unexpected shape, writes through a temp
+    file and a rename (through a symlink, not over it), re-reads the file before writing and stops if it
+    changed while the question was open, and leaves a `settings.json.corvus-backup` beside it.
+  - It does not touch `permissions`. It prints the rule to add by hand — `"mcp__corvus"` in
+    `permissions.allow` — because a woken turn otherwise stops at the tool-permission prompt.
+  - The edit is a pure function in `corvus-core` (`delivery::claude_setup`); the CLI reads, asks and writes.
+    The desktop app's "Connect an agent" snippet comes from the same function.
 - The same snippet in the [docs](../../docs/delivery-helpers.md), for pasting by hand.
 
 ## Wake supervisor (`corvus watch <agent>`)

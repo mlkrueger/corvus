@@ -116,6 +116,11 @@ enum Command {
         #[command(subcommand)]
         command: wake_cmds::AdapterCommand,
     },
+    /// Set up an agent tool for Corvus: `corvus setup claude [--remove] [--yes]`.
+    Setup {
+        #[command(subcommand)]
+        command: setup::SetupCommand,
+    },
     /// Start the optional background stack (HTTP API if a token is set, bound watchers).
     Up,
     /// Stop the background stack.
@@ -363,6 +368,7 @@ enum AdminCommand {
 }
 
 mod hook;
+mod setup;
 mod stack;
 mod wake_cmds;
 
@@ -485,6 +491,7 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         Command::Watch(args) => wake_cmds::watch(&config, args),
         Command::Agent { command } => wake_cmds::agent(&config, command),
         Command::Adapter { command } => wake_cmds::adapter(&config, command),
+        Command::Setup { command } => setup::run(command),
         Command::Up => stack::up(&config),
         Command::Down => stack::down(&config),
         Command::Status => stack::status(&config),

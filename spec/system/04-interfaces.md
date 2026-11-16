@@ -126,7 +126,7 @@ corvus inbox read|ack|wait
 corvus tell <agent> <message>          # operator direct message; --from defaults to CORVUS_OPERATOR_NAME
 corvus tell --all [--wake] <message>   # operator broadcast; --wake also wakes idle sessions            (06)
 corvus mail reassign <from> <to>       # move <from>'s unread direct mail to <to>                      (D0025)
-corvus setup claude [--remove] [--yes] # add/remove the Corvus hooks in ~/.claude/settings.json         (06)
+corvus setup claude [--remove] [--yes] [--file <path>] # add/remove the Corvus hooks in ~/.claude/settings.json (06)
 corvus digest write|list
 corvus decision record|list
 corvus bootstrap <agent>
