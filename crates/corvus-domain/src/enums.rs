@@ -81,6 +81,11 @@ string_enum!(/// Why a session ended.
     Ended => "ended", AutoEnded => "auto_ended"
 });
 
+string_enum!(/// An agent tool whose conversations Corvus can link to an agent.
+    Tool, "tool", {
+    ClaudeCode => "claude-code", OpenCode => "opencode", Codex => "codex"
+});
+
 string_enum!(/// Artifact kind.
     ArtifactKind, "artifact kind", {
     File => "file", Branch => "branch", Worktree => "worktree", Commit => "commit", Pr => "pr"
@@ -91,6 +96,8 @@ string_enum!(/// Audit event kind (heartbeats are deliberately not audited).
     SessionRegistered => "session.registered",
     SessionEnded => "session.ended",
     SessionAutoEnded => "session.auto_ended",
+    ConversationLinked => "conversation.linked",
+    ConversationCarried => "conversation.carried",
     TaskCreated => "task.created",
     TaskClaimed => "task.claimed",
     TaskRenewed => "task.renewed",
@@ -166,7 +173,7 @@ mod tests {
             s(ArtifactKind::ALL),
             ["file", "branch", "worktree", "commit", "pr"]
         );
-        assert_eq!(EventKind::ALL.len(), 23);
+        assert_eq!(EventKind::ALL.len(), 25);
         assert!("Open".parse::<TaskStatus>().is_err());
     }
 }

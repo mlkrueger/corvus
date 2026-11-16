@@ -2,6 +2,7 @@
 
 pub mod adf;
 pub mod artifact;
+pub mod conversation;
 pub mod enums;
 pub mod error;
 pub mod guidance;
@@ -17,7 +18,8 @@ pub mod text;
 pub mod wake;
 
 pub use artifact::{ArtifactRef, validate_artifact_path, validate_commit_hash};
-pub use enums::{ArtifactKind, EndReason, EventKind, MessageType, SessionEndReason, TaskStatus};
+pub use conversation::{ConversationRef, MAX_CONVERSATION_ID_LEN};
+pub use enums::{ArtifactKind, EndReason, EventKind, MessageType, SessionEndReason, TaskStatus, Tool};
 pub use error::{CorvusError, Result};
 pub use guidance::GUIDANCE;
 pub use ids::{ArtifactId, ClaimId, DecisionId, DigestId, EventId, MessageId, SessionId, TaskId, ThreadId};

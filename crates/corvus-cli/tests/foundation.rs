@@ -21,7 +21,7 @@ fn zero_config_health_creates_private_state_and_migrates() {
     );
     let out = home.corvus().arg("health").output().unwrap();
     let v = json_stdout(&out);
-    assert_eq!(v, serde_json::json!({ "ok": true, "schema_version": 6 }));
+    assert_eq!(v, serde_json::json!({ "ok": true, "schema_version": 7 }));
     assert_eq!(mode(&home.state_dir()), 0o700);
     assert_eq!(mode(&home.db_path()), 0o600);
 }
@@ -30,11 +30,11 @@ fn zero_config_health_creates_private_state_and_migrates() {
 fn migrate_twice_is_a_noop() {
     let home = Home::new();
     let first = json_stdout(&home.corvus().arg("migrate").output().unwrap());
-    assert_eq!(first["applied"].as_array().unwrap().len(), 6);
-    assert_eq!(first["schema_version"], 6);
+    assert_eq!(first["applied"].as_array().unwrap().len(), 7);
+    assert_eq!(first["schema_version"], 7);
     let second = json_stdout(&home.corvus().arg("migrate").output().unwrap());
     assert_eq!(second["applied"], serde_json::json!([]));
-    assert_eq!(second["from_version"], 6);
+    assert_eq!(second["from_version"], 7);
 }
 
 #[test]
@@ -56,14 +56,14 @@ fn many_processes_started_together_each_migration_applied_once() {
             let out = c.wait_with_output().unwrap();
             let v = json_stdout(&out);
             applied_total += v["applied"].as_array().unwrap().len();
-            assert_eq!(v["schema_version"], 6);
+            assert_eq!(v["schema_version"], 7);
         }
         assert_eq!(
-            applied_total, 6,
+            applied_total, 7,
             "round {round}: every migration applied exactly once in total"
         );
         let (db, _) = Database::open(&home.db_path(), &ManualClock::default()).unwrap();
-        assert_eq!(count(&db, "schema_migrations"), 6);
+        assert_eq!(count(&db, "schema_migrations"), 7);
     }
 }
 

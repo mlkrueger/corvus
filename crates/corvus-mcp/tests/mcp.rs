@@ -6,8 +6,9 @@ use std::time::Duration;
 
 use corvus_core::Corvus;
 use corvus_core::hermod::Hermod;
-use corvus_core::testing::{TestDb, exec};
+use corvus_core::testing::{TestDb, count, exec};
 use corvus_domain::{AgentName, CorvusError, GUIDANCE};
+use corvus_mcp::McpOptions;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, Lines, ReadHalf, WriteHalf, split};
 use tokio::task::JoinHandle;
@@ -49,10 +50,18 @@ fn corvus(t: &TestDb) -> Corvus {
 impl Client {
     /// Starts a server on `t`'s database and completes the initialize handshake.
     async fn start(t: &TestDb, default_agent: Option<&str>) -> (Self, Value) {
+        let options = McpOptions {
+            default_agent: default_agent.map(|a| AgentName::parse(a).unwrap()),
+            ..McpOptions::default()
+        };
+        Self::start_as(t, options, "t").await
+    }
+
+    /// [`Client::start`] with explicit host options and the `clientInfo.name` sent at `initialize`.
+    async fn start_as(t: &TestDb, options: McpOptions, client_name: &str) -> (Self, Value) {
         let (c_to_s, s_in) = tokio::io::duplex(1 << 20);
         let (s_out, s_to_c) = tokio::io::duplex(1 << 20);
-        let default = default_agent.map(|a| AgentName::parse(a).unwrap());
-        let server = tokio::spawn(corvus_mcp::run(corvus(t), default, s_in, s_out));
+        let server = tokio::spawn(corvus_mcp::run(corvus(t), options, s_in, s_out));
         let (_unused, w) = split(c_to_s);
         let (r, _unused2) = split(s_to_c);
         let mut c = Client {
@@ -64,7 +73,7 @@ impl Client {
         let init = c
             .request(
                 "initialize",
-                json!({"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}),
+                json!({"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": client_name, "version": "0"}}),
             )
             .await;
         c.write(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
@@ -109,6 +118,17 @@ impl Client {
     async fn send_tool(&mut self, name: &str, args: Value) -> u64 {
         self.send("tools/call", json!({"name": name, "arguments": args}))
             .await
+    }
+
+    /// A tool call carrying request `_meta`, as the agent tools send it.
+    async fn tool_meta(&mut self, name: &str, args: Value, meta: Value) -> (bool, Value) {
+        let id = self
+            .send(
+                "tools/call",
+                json!({"name": name, "arguments": args, "_meta": meta}),
+            )
+            .await;
+        self.finish_tool(id).await
     }
 
     /// `(is_error, parsed JSON text)`.
@@ -417,4 +437,206 @@ async fn two_servers_one_database_wait_wakes_on_post() {
     assert_eq!(v[0]["body"], "wake up");
     waiter.close().await.unwrap();
     poster.close().await.unwrap();
+}
+
+// ---------- conversations (D0023) ----------
+
+const CLAUDE_ID: &str = "48ab6180-bde1-4698-b7a6-ac1a9e20db89";
+
+fn opencode(session: &str) -> Value {
+    json!({"ai.opencode/sessionID": session, "progressToken": 1})
+}
+
+/// What Claude Code 2.1.325 sends with every request (it names itself here, not at `initialize`).
+fn claude_meta() -> Value {
+    json!({
+        "io.modelcontextprotocol/clientInfo": {"name": "claude-code", "version": "2.1.325"},
+        "claudecode/toolUseId": "toolu_x",
+    })
+}
+
+fn claude_options() -> McpOptions {
+    McpOptions {
+        claude_session_id: Some(CLAUDE_ID.into()),
+        directory: Some("/work/project".into()),
+        ..McpOptions::default()
+    }
+}
+
+fn links(t: &TestDb, agent: &str) -> Vec<corvus_core::api::ConversationView> {
+    t.services().sessions().conversations_for_agent(agent).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_register_schema_does_not_offer_a_conversation_and_ignores_one() {
+    let t = TestDb::new();
+    let (mut c, _) = Client::start(&t, None).await;
+    let tools = c.request("tools/list", json!({})).await;
+    let register = tools["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["name"] == "register_session")
+        .unwrap();
+    assert!(
+        register["inputSchema"]["properties"]
+            .get("conversation")
+            .is_none(),
+        "{register}"
+    );
+    // A model that sends one anyway cannot choose who it is.
+    let out = c
+        .ok(
+            "register_session",
+            json!({"client_name": "test", "conversation": {"tool": "claude-code", "id": CLAUDE_ID}}),
+        )
+        .await;
+    assert!(links(&t, out["session"]["agent_name"].as_str().unwrap()).is_empty());
+    assert_eq!(count(&t.db, "conversations"), 0);
+    c.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claude_code_is_linked_by_the_environment_id_and_a_resume_gets_the_same_agent() {
+    let t = TestDb::new();
+    let (mut a, _) = Client::start_as(&t, claude_options(), "t").await;
+    let (err, out) = a
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "claude-code"}),
+            claude_meta(),
+        )
+        .await;
+    assert!(!err, "{out}");
+    let agent = out["session"]["agent_name"].as_str().unwrap().to_owned();
+    let l = links(&t, &agent);
+    assert_eq!(l.len(), 1);
+    assert_eq!(
+        (l[0].tool.as_str(), l[0].conversation_id.as_str()),
+        ("claude-code", CLAUDE_ID)
+    );
+    assert_eq!(l[0].directory.as_deref(), Some("/work/project"));
+    // Later calls from the same conversation use the remembered session.
+    let (err, hb) = a.tool_meta("heartbeat", json!({}), claude_meta()).await;
+    assert!(!err, "{hb}");
+    a.close().await.unwrap();
+
+    // A new process on the same conversation (`claude --resume`): same agent, new session.
+    let (mut b, _) = Client::start_as(&t, claude_options(), "t").await;
+    let (_, again) = b
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "claude-code"}),
+            claude_meta(),
+        )
+        .await;
+    assert_eq!(again["session"]["agent_name"], json!(agent));
+    assert_ne!(again["session"]["id"], out["session"]["id"]);
+    assert_eq!(count(&t.db, "conversations"), 1);
+    b.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_claude_id_leaked_into_another_tools_server_is_ignored() {
+    let t = TestDb::new();
+    // OpenCode's shared service passed its own start-up environment to the server (measured).
+    let (mut c, _) = Client::start_as(&t, claude_options(), "opencode").await;
+    c.ok("register_session", json!({"client_name": "opencode"})).await;
+    assert_eq!(
+        count(&t.db, "conversations"),
+        0,
+        "no OpenCode id, and the Claude one is not ours to use"
+    );
+    c.close().await.unwrap();
+
+    // An unknown client gets no link either.
+    let (mut d, _) = Client::start_as(&t, claude_options(), "some-editor").await;
+    d.ok("register_session", json!({"client_name": "x"})).await;
+    assert_eq!(count(&t.db, "conversations"), 0);
+    d.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn one_server_keeps_a_session_per_opencode_conversation() {
+    let t = TestDb::new();
+    let (mut c, _) = Client::start_as(&t, McpOptions::default(), "opencode").await;
+    let (_, a) = c
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "opencode"}),
+            opencode("ses_aaaaaaaa1"),
+        )
+        .await;
+    let (_, b) = c
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "opencode"}),
+            opencode("ses_bbbbbbbb2"),
+        )
+        .await;
+    let (agent_a, agent_b) = (
+        a["session"]["agent_name"].as_str().unwrap().to_owned(),
+        b["session"]["agent_name"].as_str().unwrap().to_owned(),
+    );
+    assert_ne!(agent_a, agent_b, "two conversations are two agents");
+    assert_eq!(links(&t, &agent_a)[0].conversation_id, "ses_aaaaaaaa1");
+    assert_eq!(
+        links(&t, &agent_b)[0].directory,
+        None,
+        "the server's directory is not the session's"
+    );
+
+    // Each conversation's calls are filled from its own slot.
+    let (err, hb_a) = c
+        .tool_meta("heartbeat", json!({}), opencode("ses_aaaaaaaa1"))
+        .await;
+    assert!(!err, "{hb_a}");
+    assert_eq!(hb_a["id"], a["session"]["id"]);
+    let (err, hb_b) = c
+        .tool_meta("heartbeat", json!({}), opencode("ses_bbbbbbbb2"))
+        .await;
+    assert!(!err, "{hb_b}");
+    assert_eq!(hb_b["id"], b["session"]["id"]);
+    let (_, task) = c
+        .tool_meta(
+            "create_task",
+            json!({"title": "from b"}),
+            opencode("ses_bbbbbbbb2"),
+        )
+        .await;
+    assert_eq!(task["creator"], json!(agent_b));
+
+    // A conversation that has not registered borrows nobody's session; nor does a call with no id.
+    let (err, v) = c
+        .tool_meta("heartbeat", json!({}), opencode("ses_cccccccc3"))
+        .await;
+    assert!(err && v["error"]["code"] == "validation", "{v}");
+    let (err, v) = c.tool("heartbeat", json!({})).await;
+    assert!(err && v["error"]["code"] == "validation", "{v}");
+
+    // EOF ends every remembered session.
+    c.close().await.unwrap();
+    for s in [&a, &b] {
+        let id = s["session"]["id"].as_str().unwrap().to_owned();
+        let ended = t.services().sessions().heartbeat(&id);
+        assert!(matches!(ended, Err(CorvusError::SessionNotActive)), "{ended:?}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unusable_conversation_id_registers_without_a_link() {
+    let t = TestDb::new();
+    let (mut c, _) = Client::start_as(&t, McpOptions::default(), "opencode").await;
+    for bad in ["../../etc", "has space", ""] {
+        let (err, out) = c
+            .tool_meta(
+                "register_session",
+                json!({"client_name": "opencode"}),
+                opencode(bad),
+            )
+            .await;
+        assert!(!err, "{bad:?}: {out}");
+    }
+    assert_eq!(count(&t.db, "conversations"), 0);
+    let _ = c.close().await;
 }

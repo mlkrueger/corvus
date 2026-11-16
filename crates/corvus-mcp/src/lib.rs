@@ -8,17 +8,18 @@
 //! stdout carries protocol only; diagnostics go through `tracing` (stderr).
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use corvus_core::Corvus;
 use corvus_core::api::{
-    AckMessage, CancelTask, ClaimTask, CompleteTask, CreateTask, CreateThread, ExportRequest, ListDecisions,
-    PostMessage, ReadInbox, RecordDecision, RegisterSession, SendDirect, SessionRef, WaitForInbox,
-    WriteDigest,
+    AckMessage, CancelTask, ClaimTask, CompleteTask, ConversationInput, CreateTask, CreateThread,
+    ExportRequest, ListDecisions, PostMessage, ReadInbox, RecordDecision, RegisterSession, SendDirect,
+    SessionRef, WaitForInbox, WriteDigest,
 };
 use corvus_core::services::Services;
-use corvus_domain::{AgentName, CorvusError, GUIDANCE};
+use corvus_domain::{AgentName, ConversationRef, CorvusError, GUIDANCE, Tool as AgentTool};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, JsonObject,
     ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool,
@@ -31,30 +32,43 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-/// Serves MCP over stdin/stdout until stdin closes; then ends the remembered session (best effort).
-/// `default_agent` is `CORVUS_AGENT_NAME`, used when `register_session` omits a name.
-pub async fn run_stdio(corvus: Corvus, default_agent: Option<AgentName>) -> Result<(), CorvusError> {
+/// What the process that started this server knows about its host.
+#[derive(Debug, Clone, Default)]
+pub struct McpOptions {
+    /// `CORVUS_AGENT_NAME`, used when `register_session` omits a name.
+    pub default_agent: Option<AgentName>,
+    /// `CLAUDE_CODE_SESSION_ID` from the environment. Used as the conversation id **only** when the client
+    /// says it is Claude Code: other tools can leak the variable into the servers they start.
+    pub claude_session_id: Option<String>,
+    /// The working directory, recorded with a Claude Code conversation link.
+    pub directory: Option<String>,
+}
+
+/// The MCP `clientInfo.name` Claude Code sends (measured on 2.1.325, in each request's `_meta`).
+const CLIENT_CLAUDE_CODE: &str = "claude-code";
+/// The `clientInfo.name` OpenCode sends at `initialize` (measured on 2.3.0).
+const CLIENT_OPENCODE: &str = "opencode";
+const META_CLIENT_INFO: &str = "io.modelcontextprotocol/clientInfo";
+const META_OPENCODE_SESSION: &str = "ai.opencode/sessionID";
+
+/// Serves MCP over stdin/stdout until stdin closes; then ends the remembered sessions (best effort).
+pub async fn run_stdio(corvus: Corvus, options: McpOptions) -> Result<(), CorvusError> {
     let (reader, writer) = rmcp::transport::stdio();
-    run(corvus, default_agent, reader, writer).await
+    run(corvus, options, reader, writer).await
 }
 
 /// [`run_stdio`] over any reader/writer pair (tests use an in-memory pipe).
-pub async fn run<R, W>(
-    corvus: Corvus,
-    default_agent: Option<AgentName>,
-    reader: R,
-    writer: W,
-) -> Result<(), CorvusError>
+pub async fn run<R, W>(corvus: Corvus, options: McpOptions, reader: R, writer: W) -> Result<(), CorvusError>
 where
     R: AsyncRead + Send + Unpin + 'static,
     W: AsyncWrite + Send + Unpin + 'static,
 {
-    let server = CorvusMcp::new(corvus, default_agent);
+    let server = CorvusMcp::new(corvus, options);
     let outcome = match server.clone().serve((reader, writer)).await {
         Ok(running) => running.waiting().await.map(|_| ()).map_err(|e| e.to_string()),
         Err(e) => Err(e.to_string()),
     };
-    server.end_remembered_session().await;
+    server.end_remembered_sessions().await;
     outcome.map_err(|e| {
         tracing::error!("mcp transport failed: {e}");
         CorvusError::Internal(format!("mcp transport failed: {e}"))
@@ -67,11 +81,16 @@ struct Remembered {
     agent: String,
 }
 
+/// The memory slot a call belongs to: its conversation, or the one shared slot for calls without one.
+type Slot = Option<ConversationRef>;
+
 #[derive(Clone)]
 struct CorvusMcp {
     corvus: Corvus,
-    default_agent: Option<AgentName>,
-    remembered: Arc<Mutex<Option<Remembered>>>,
+    options: McpOptions,
+    /// One process can serve several conversations (OpenCode runs one server for all its sessions), so the
+    /// remembered session is kept per conversation.
+    remembered: Arc<Mutex<HashMap<Slot, Remembered>>>,
     tools: Arc<Vec<ToolDef>>,
 }
 
@@ -314,24 +333,32 @@ fn parse<T: DeserializeOwned>(map: JsonObject) -> Result<T, CorvusError> {
 }
 
 impl CorvusMcp {
-    fn new(corvus: Corvus, default_agent: Option<AgentName>) -> Self {
+    fn new(corvus: Corvus, options: McpOptions) -> Self {
         Self {
             corvus,
-            default_agent,
-            remembered: Arc::new(Mutex::new(None)),
+            options,
+            remembered: Arc::new(Mutex::new(HashMap::new())),
             tools: Arc::new(tool_defs()),
         }
     }
 
-    fn memory(&self) -> Option<Remembered> {
+    fn memory(&self, slot: &Slot) -> Option<Remembered> {
         self.remembered
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+            .get(slot)
+            .cloned()
     }
 
-    async fn end_remembered_session(&self) {
-        if let Some(m) = self.memory() {
+    async fn end_remembered_sessions(&self) {
+        let all: Vec<Remembered> = self
+            .remembered
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect();
+        for m in all {
             let id = m.session_id;
             if let Err(e) = self.corvus.run(move |s| s.sessions().end(&id)).await {
                 tracing::debug!("ending remembered session on exit: {e}");
@@ -339,11 +366,23 @@ impl CorvusMcp {
         }
     }
 
+    /// The tool conversation a call belongs to, taken only from the source that belongs to the client that
+    /// made it. An id that fails validation is dropped: the call proceeds with no conversation.
+    fn conversation(&self, client: Option<&str>, meta: &JsonObject) -> Slot {
+        let (tool, id) = match client {
+            Some(CLIENT_CLAUDE_CODE) => (AgentTool::ClaudeCode, self.options.claude_session_id.as_deref()?),
+            Some(CLIENT_OPENCODE) => (AgentTool::OpenCode, meta.get(META_OPENCODE_SESSION)?.as_str()?),
+            _ => return None,
+        };
+        ConversationRef::new(tool, id).ok()
+    }
+
     /// Fills omitted fields from the remembered session and splits off the path-style id.
     fn prepare(
         &self,
         def: &ToolDef,
         args: Option<JsonObject>,
+        slot: &Slot,
     ) -> Result<(JsonObject, Option<Value>), CorvusError> {
         let mut map = args.unwrap_or_default();
         let id = match def.id {
@@ -365,7 +404,7 @@ impl CorvusMcp {
             }
             None => None,
         };
-        let memory = self.memory();
+        let memory = self.memory(slot);
         if let Some(m) = &memory {
             for f in def.agent_fields {
                 if blank(map.get(*f)) {
@@ -397,28 +436,43 @@ impl CorvusMcp {
         serde_json::to_value(out).map_err(|e| CorvusError::Internal(format!("serialise result: {e}")))
     }
 
-    async fn dispatch(&self, name: &str, args: Option<JsonObject>) -> Result<Value, CorvusError> {
+    async fn dispatch(&self, name: &str, args: Option<JsonObject>, slot: Slot) -> Result<Value, CorvusError> {
         let def = self
             .tools
             .iter()
             .find(|d| d.name == name)
             .ok_or_else(|| CorvusError::NotFound(format!("unknown tool `{name}`")))?;
-        let (mut map, id) = self.prepare(def, args)?;
+        let (mut map, id) = self.prepare(def, args, &slot)?;
         let task = || id.as_ref().and_then(Value::as_str).unwrap_or_default().to_owned();
         match name {
             "register_session" => {
                 if blank(map.get("agent_name")) {
                     map.remove("agent_name");
-                    if let Some(a) = &self.default_agent {
+                    if let Some(a) = &self.options.default_agent {
                         map.insert("agent_name".into(), Value::String(a.to_string()));
                     }
                 }
-                let req: RegisterSession = parse(map)?;
-                let out = self.corvus.run(move |s| s.muninn().connect(&req)).await?;
-                *self.remembered.lock().unwrap_or_else(PoisonError::into_inner) = Some(Remembered {
-                    session_id: out.session.id.clone(),
-                    agent: out.session.agent_name.clone(),
+                // The server says which conversation this is; a model cannot.
+                map.remove("conversation");
+                let mut req: RegisterSession = parse(map)?;
+                req.conversation = slot.as_ref().map(|c| ConversationInput {
+                    tool: c.tool().to_string(),
+                    id: c.id().to_owned(),
+                    directory: (c.tool() == AgentTool::ClaudeCode)
+                        .then(|| self.options.directory.clone())
+                        .flatten(),
                 });
+                let out = self.corvus.run(move |s| s.muninn().connect(&req)).await?;
+                self.remembered
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .insert(
+                        slot,
+                        Remembered {
+                            session_id: out.session.id.clone(),
+                            agent: out.session.agent_name.clone(),
+                        },
+                    );
                 serde_json::to_value(out).map_err(|e| CorvusError::Internal(format!("serialise result: {e}")))
             }
             "get_bootstrap_context" => {
@@ -550,9 +604,18 @@ impl ServerHandler for CorvusMcp {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        let result = match self.dispatch(&request.name, request.arguments).await {
+        // Claude Code names itself in each request's `_meta`; OpenCode at `initialize`.
+        let meta: &JsonObject = request.meta.as_deref().map_or(&context.meta, |m| m);
+        let peer = context.peer.peer_info();
+        let client = meta
+            .get(META_CLIENT_INFO)
+            .and_then(|c| c.get("name"))
+            .and_then(Value::as_str)
+            .or_else(|| peer.as_deref().map(|p| p.client_info.name.as_str()));
+        let slot = self.conversation(client, meta);
+        let result = match self.dispatch(&request.name, request.arguments, slot).await {
             Ok(value) => CallToolResult::success(vec![ContentBlock::text(value.to_string())]),
             Err(e) => CallToolResult::error(vec![ContentBlock::text(error_json(&e))]),
         };

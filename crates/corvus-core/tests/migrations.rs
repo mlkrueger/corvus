@@ -11,21 +11,21 @@ fn applies_to_an_empty_database_and_second_run_is_a_noop() {
     let t = TestDb::new();
     assert_eq!(t.report.from_version, 0);
     assert_eq!(t.report.to_version, SCHEMA_VERSION);
-    assert_eq!(t.report.applied.len(), 6);
+    assert_eq!(t.report.applied.len(), 7);
     assert_eq!(t.report.applied[0], "0001_agents_sessions");
     assert_eq!(t.report.backup, None, "an empty database is not backed up");
     let applied = t.db.read(|tx| migrator::applied(tx)).unwrap();
     assert_eq!(
         applied.iter().map(|m| m.version).collect::<Vec<_>>(),
-        vec![1, 2, 3, 4, 5, 6]
+        vec![1, 2, 3, 4, 5, 6, 7]
     );
     assert!(applied.iter().all(|m| m.applied_at == t.now()));
     assert_eq!(query_i64(&t.db, "PRAGMA user_version"), Some(SCHEMA_VERSION));
 
     let (_db2, again) = Database::open(&t.path, t.clock.as_ref()).unwrap();
     assert!(again.applied.is_empty());
-    assert_eq!((again.from_version, again.to_version), (6, 6));
-    assert_eq!(count(&t.db, "schema_migrations"), 6);
+    assert_eq!((again.from_version, again.to_version), (7, 7));
+    assert_eq!(count(&t.db, "schema_migrations"), 7);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn newer_database_is_refused() {
             err,
             OpenError::Newer {
                 database: 99,
-                binary: 6
+                binary: 7
             }
         ),
         "{err}"
@@ -90,8 +90,8 @@ fn running_process_detects_version_skew_on_write() {
     let t = TestDb::new();
     let other = t.reopen();
     // Simulates another process upgrading the schema underneath this one.
-    exec(&other, "PRAGMA user_version = 7").unwrap();
-    assert_eq!(query_i64(&t.db, "PRAGMA user_version"), Some(7));
+    exec(&other, "PRAGMA user_version = 99").unwrap();
+    assert_eq!(query_i64(&t.db, "PRAGMA user_version"), Some(99));
     let err = exec(&t.db, "INSERT INTO agents (name, created_at) VALUES ('a', 1)").unwrap_err();
     assert!(err.to_string().contains("restart this process"), "{err}");
 }
@@ -116,7 +116,7 @@ fn backup_written_before_migrating_a_non_empty_database_and_it_opens() {
     let (_db, r) = Database::open(&path, &clock).unwrap();
     let bak = backup_path(&path, SCHEMA_VERSION);
     assert_eq!(r.backup.as_deref(), Some(bak.as_path()));
-    assert_eq!(r.applied.len(), 3);
+    assert_eq!(r.applied.len(), 4);
     assert_eq!(mode(&bak), 0o600);
 
     // The backup is the pre-migration database: v3 with the row in it.
@@ -142,8 +142,8 @@ fn concurrent_openers_in_threads_apply_each_migration_once() {
             })
             .collect();
         let applied: Vec<usize> = handles.into_iter().map(|h| h.join().unwrap().unwrap()).collect();
-        assert_eq!(applied.iter().sum::<usize>(), 6, "{applied:?}");
+        assert_eq!(applied.iter().sum::<usize>(), 7, "{applied:?}");
         let (db, _) = Database::open(&path, &ManualClock::default()).unwrap();
-        assert_eq!(count(&db, "schema_migrations"), 6);
+        assert_eq!(count(&db, "schema_migrations"), 7);
     }
 }

@@ -266,6 +266,7 @@ See [07](07-work-sources.md#storage): `source_settings`, `source_tickets`, `sour
 | Trigger | On | Purpose |
 |---|---|---|
 | `<table>_no_update` `BEFORE UPDATE`, `<table>_no_delete` `BEFORE DELETE` → `SELECT RAISE(ABORT, 'append-only table')` | `messages`, `digests`, `events` | P4. [D0010](../decisions/0010-append-only-enforcement.md) |
+| `conversations_no_update` `BEFORE UPDATE`, `conversations_no_delete` `BEFORE DELETE` → `SELECT RAISE(ABORT, 'conversation links are immutable')` | `conversations` | A conversation is one agent for good. [D0023](../decisions/0023-agent-identity-follows-conversation.md) |
 | `messages_hint` `AFTER INSERT` | `messages` | `INSERT INTO hints(topic) VALUES ('inbox:' || coalesce(NEW.recipient, '*'))` |
 | `tasks_hint_insert` `AFTER INSERT`, `tasks_hint_update` `AFTER UPDATE` | `tasks` | `INSERT INTO hints(topic) VALUES ('tasks')` |
 

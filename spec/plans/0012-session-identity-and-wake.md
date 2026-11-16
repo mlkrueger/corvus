@@ -39,9 +39,9 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
         open session; where the id reaches `corvus mcp`.
 - [x] 2. **Spec first.** system/02 (table), /03 (service), /04 (`register_session`, MCP), /06 (hook identity,
       waiter, adapters bound from links), /08 (threats), /11 (defaults); accept or amend D0023 and D0024.
-- [ ] 3. Migration `0007_conversations`: `(tool, conversation_id) → agent_name`, working directory, timestamps.
+- [x] 3. Migration `0007_conversations`: `(tool, conversation_id) → agent_name`, working directory, timestamps.
       Link and carry-over written in one transaction with an audit event.
-- [ ] 4. `register_session` takes an optional conversation reference: known → attach to its agent; unknown →
+- [x] 4. `register_session` takes an optional conversation reference: known → attach to its agent; unknown →
       register as today and record the link. `corvus mcp` fills it from the environment or request metadata.
 - [ ] 5. `corvus hook` resolves its agent by conversation when `CORVUS_AGENT_NAME` is absent; no link → silent
       exit 0. Explicit name still wins.
@@ -86,8 +86,9 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
   mechanism (row 63), the waiter time limit (row 61). **Recommended defaults the owner has not confirmed:**
   direct mail only wakes (row 62), `corvus up` starts watchers (row 64), unreachable agents get a warning and a
   flag, no take-over (row 65).
-- **`clientInfo.name` Claude Code sends** at `initialize` — read it from a real session in step 4 before
-  matching on it.
+- **Resolved in step 4:** Claude Code 2.1.325 sends no `initialize` request to a stdio server on protocol
+  `2026-07-28`; it names itself (`claude-code`) in every request's `_meta["io.modelcontextprotocol/clientInfo"]`.
+  OpenCode names itself at `initialize`. The server reads both.
 - **`opencode run` and the adapter timeout**: the command returns when the turn ends, which can be longer than
   300 s. Does killing it cancel the turn? Check in step 10.
 - **An install command** (`corvus setup claude` editing `~/.claude/settings.json`) versus documented snippets

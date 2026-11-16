@@ -35,6 +35,7 @@ fn register_named_creates_agent_session_and_one_event() {
             client_name: "claude-code".into(),
             metadata: Some(serde_json::json!({"cwd": "/repo"})),
             idempotency_key: None,
+            conversation: None,
         })
         .unwrap();
     assert_eq!(v.agent_name, "alice");

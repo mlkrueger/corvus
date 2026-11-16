@@ -27,6 +27,38 @@ pub struct RegisterSession {
     pub metadata: Option<Value>,
     #[serde(default)]
     pub idempotency_key: Option<String>,
+    /// The tool conversation this session belongs to ([D0023]). Filled by the transport (the MCP server),
+    /// never by a model: it is absent from the generated tool schema.
+    ///
+    /// [D0023]: ../../../spec/decisions/0023-agent-identity-follows-conversation.md
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(skip)]
+    pub conversation: Option<ConversationInput>,
+}
+
+/// A tool's own id for a conversation, as received (validated by the service).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
+#[serde(deny_unknown_fields)]
+pub struct ConversationInput {
+    /// `claude-code`, `opencode` or `codex`.
+    pub tool: String,
+    pub id: String,
+    /// The session's working directory, if known.
+    #[serde(default)]
+    pub directory: Option<String>,
+}
+
+/// A conversation link: which agent a tool conversation is.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ConversationView {
+    pub tool: String,
+    pub conversation_id: String,
+    pub agent_name: String,
+    pub directory: Option<String>,
+    pub carried_from: Option<String>,
+    pub created_at: Timestamp,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

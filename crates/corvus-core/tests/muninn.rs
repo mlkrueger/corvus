@@ -920,7 +920,7 @@ fn stats_and_overview_match_a_seeded_scenario() {
     );
     assert!(!o.events.is_empty() && o.events.len() <= 100);
     assert_eq!(o.thresholds.lease_seconds, 900);
-    assert_eq!(m.s.overview().health().unwrap().schema_version, 6);
+    assert_eq!(m.s.overview().health().unwrap().schema_version, 7);
 }
 
 /// Runs `f` on 16 threads (each with its own database handle), released together; returns the results.

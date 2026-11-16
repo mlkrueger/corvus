@@ -7,6 +7,7 @@
 pub mod agents;
 pub mod artifacts;
 pub mod claims;
+pub mod conversations;
 pub mod decisions;
 pub mod digests;
 pub mod events;

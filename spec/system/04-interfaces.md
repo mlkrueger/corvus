@@ -96,7 +96,8 @@ Handlers are async; each calls the synchronous service through the `Corvus` faca
   it instead of generating one.
 - **Conversation** ([D0023](../decisions/0023-agent-identity-follows-conversation.md)): the server, never the
   model, fills `conversation` on `register_session` (the field is not in the tool's input schema). The tool is
-  taken from the MCP client's `clientInfo.name` at `initialize`; the id from where that tool puts it:
+  taken from the MCP client's `clientInfo.name` — in the request's `_meta` (Claude Code, which sends no
+  `initialize` on protocol `2026-07-28`) or from `initialize` (OpenCode); the id from where that tool puts it:
 
   | Client | Conversation id | Notes |
   |---|---|---|

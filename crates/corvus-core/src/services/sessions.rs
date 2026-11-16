@@ -1,20 +1,39 @@
 //! Sessions and presence (brief §4.1, system/03 "Sessions and presence").
 
 use corvus_domain::{
-    AgentName, CorvusError, EndReason, EventKind, Result, SessionEndReason, TaskStatus, generated_name,
-    suffixed_name,
+    AgentName, ConversationRef, CorvusError, EndReason, EventKind, Result, SessionEndReason, TaskStatus,
+    Tool, generated_name, suffixed_name,
 };
 
-use crate::api::{EndStaleResult, ListSessions, RegisterSession, SessionView};
+use crate::api::{
+    ConversationInput, ConversationView, EndStaleResult, ListSessions, RegisterSession, SessionView,
+};
 use crate::db::WriteTx;
 use crate::ids::{new_session_id, random_u64};
 use crate::services::{Services, agent, idempotency_key, label, session_id, touch, views};
 use crate::store::events::{self, NewEvent};
-use crate::store::{agents, claims, sessions, tasks};
+use crate::store::{agents, claims, conversations, sessions, tasks};
 
 /// Generated-name attempts before falling back to a numeric suffix ([defaults #17]).
 const NAME_ATTEMPTS: u32 = 20;
 const MAX_METADATA_BYTES: usize = 16 * 1024;
+const MAX_DIRECTORY_CHARS: usize = 1024;
+
+/// Validates a conversation reference as received from a transport.
+fn conversation_ref(input: &ConversationInput) -> Result<ConversationRef> {
+    ConversationRef::new(input.tool.parse::<Tool>()?, &input.id)
+}
+
+fn conversation_view(row: conversations::ConversationRow) -> ConversationView {
+    ConversationView {
+        tool: row.tool,
+        conversation_id: row.conversation_id,
+        agent_name: row.agent_name,
+        directory: row.directory,
+        carried_from: row.carried_from,
+        created_at: crate::clock::Timestamp(row.created_at),
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Sessions<'a> {
@@ -24,7 +43,18 @@ pub struct Sessions<'a> {
 impl Sessions<'_> {
     /// Creates a session (and the agent, if new). Without a name, generates and atomically reserves one.
     /// Idempotent on `(agent_name, idempotency_key)`; a replay returns the original session.
+    ///
+    /// With a `conversation`: a linked conversation registers as its linked agent (a different requested name
+    /// is ignored); an unlinked one is linked to the agent registered here, in the same transaction.
     pub fn register(&self, req: &RegisterSession) -> Result<SessionView> {
+        let conversation = req.conversation.as_ref().map(conversation_ref).transpose()?;
+        let directory = req
+            .conversation
+            .as_ref()
+            .and_then(|c| c.directory.as_deref())
+            .map(str::trim)
+            .filter(|d| !d.is_empty() && d.chars().count() <= MAX_DIRECTORY_CHARS && !d.contains('\0'))
+            .map(str::to_owned);
         let name = req.agent_name.as_deref().map(str::trim).filter(|n| !n.is_empty());
         let name = name.map(|n| agent("agent_name", n)).transpose()?;
         let client = label("client_name", &req.client_name, 200)?;
@@ -45,6 +75,14 @@ impl Sessions<'_> {
         let settings = self.s.settings();
 
         let row = self.s.db().write(|tx| {
+            let linked = match &conversation {
+                Some(c) => conversations::get(tx, c)?
+                    .map(|l| agent("agent_name", &l.agent_name))
+                    .transpose()?,
+                None => None,
+            };
+            let is_linked = linked.is_some();
+            let name = linked.or_else(|| name.clone());
             if let Some(k) = &key {
                 let replay = match &name {
                     Some(n) => sessions::by_idempotency_key(tx, n.as_str(), k)?,
@@ -92,9 +130,90 @@ impl Sessions<'_> {
                 },
                 now,
             )?;
+            if let Some(c) = conversation.as_ref().filter(|_| !is_linked) {
+                conversations::insert(tx, c, agent_name.as_str(), directory.as_deref(), None, now)?;
+                events::insert(
+                    tx,
+                    EventKind::ConversationLinked,
+                    &NewEvent {
+                        summary: format!("{agent_name} is {} conversation {}", c.tool(), c.id()),
+                        agent_name: Some(agent_name.as_str()),
+                        session_id: Some(&id),
+                        ..NewEvent::default()
+                    },
+                    now,
+                )?;
+            }
             sessions::get(tx, &id)?.ok_or_else(|| CorvusError::Internal("session vanished".into()))
         })?;
         views::session(row, now, &settings)
+    }
+
+    /// The agent a tool conversation is linked to, if any.
+    pub fn agent_for_conversation(&self, conversation: &ConversationRef) -> Result<Option<AgentName>> {
+        self.s.db().read(|tx| {
+            conversations::get(tx, conversation)?
+                .map(|l| agent("agent_name", &l.agent_name))
+                .transpose()
+        })
+    }
+
+    /// An agent's conversation links, newest first.
+    pub fn conversations_for_agent(&self, agent_name: &str) -> Result<Vec<ConversationView>> {
+        let name = agent("agent_name", agent_name)?;
+        self.s.db().read(|tx| {
+            Ok(conversations::for_agent(tx, name.as_str())?
+                .into_iter()
+                .map(conversation_view)
+                .collect())
+        })
+    }
+
+    /// The tool issued a new id for the same session (Claude Code `/clear`): links `to` to the agent `from`
+    /// is linked to. Returns that agent, or `None` when `from` is not linked or `to` already is (no change).
+    pub fn carry_conversation(
+        &self,
+        from: &ConversationRef,
+        to: &ConversationRef,
+    ) -> Result<Option<AgentName>> {
+        if from.tool() != to.tool() {
+            return Err(CorvusError::Validation(
+                "conversation: a link is carried within one tool".into(),
+            ));
+        }
+        let now = self.s.now();
+        self.s.db().write(|tx| {
+            let Some(link) = conversations::get(tx, from)? else {
+                return Ok(None);
+            };
+            if !conversations::insert(
+                tx,
+                to,
+                &link.agent_name,
+                link.directory.as_deref(),
+                Some(from.id()),
+                now,
+            )? {
+                return Ok(None);
+            }
+            events::insert(
+                tx,
+                EventKind::ConversationCarried,
+                &NewEvent {
+                    summary: format!(
+                        "{} carried to {} conversation {} (from {})",
+                        link.agent_name,
+                        to.tool(),
+                        to.id(),
+                        from.id()
+                    ),
+                    agent_name: Some(&link.agent_name),
+                    ..NewEvent::default()
+                },
+                now,
+            )?;
+            agent("agent_name", &link.agent_name).map(Some)
+        })
     }
 
     /// Bumps `last_seen_at`. Unknown or ended → `SessionNotActive`. Not audited (liveness, not a state change).

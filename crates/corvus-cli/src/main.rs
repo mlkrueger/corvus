@@ -19,7 +19,7 @@ const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (commit ",
     env!("CORVUS_GIT_COMMIT"),
-    ", schema 6)"
+    ", schema 7)"
 );
 
 #[derive(Parser, Debug)]
@@ -440,7 +440,16 @@ fn run(cli: Cli) -> Result<Value, CorvusError> {
         Command::JiraSync => source_sync(&config, corvus_domain::SourceId::Jira),
         Command::Mcp => {
             let (corvus, _) = corvus_core::Corvus::open(&config)?;
-            runtime()?.block_on(corvus_mcp::run_stdio(corvus, config.agent_name.clone()))?;
+            let options = corvus_mcp::McpOptions {
+                default_agent: config.agent_name.clone(),
+                claude_session_id: std::env::var("CLAUDE_CODE_SESSION_ID")
+                    .ok()
+                    .filter(|v| !v.is_empty()),
+                directory: std::env::current_dir()
+                    .ok()
+                    .and_then(|d| d.to_str().map(str::to_owned)),
+            };
+            runtime()?.block_on(corvus_mcp::run_stdio(corvus, options))?;
             Ok(Value::Null)
         }
         Command::Serve => {
@@ -506,6 +515,7 @@ fn session_cmd(s: &Services, c: SessionCommand) -> Result<Value, CorvusError> {
                 client_name: client,
                 metadata,
                 idempotency_key,
+                conversation: None,
             }))
         }
         SessionCommand::Heartbeat { session_id } => json(sessions.heartbeat(&session_id)),
