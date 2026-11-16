@@ -10,14 +10,20 @@ is needed. An optional desktop app is the dashboard.
 
 ## Quick start
 
-1. Get `corvus` — a release binary (see [docs/release.md](docs/release.md)) or build it from a clone:
+1. Download `corvus` for your machine from the project's GitHub Releases page (`<target>` is
+   `aarch64-apple-darwin` or `x86_64-apple-darwin` on macOS, `aarch64-` or `x86_64-unknown-linux-musl` on Linux)
+   and unpack it onto your `PATH`. Nothing else is needed: no runtime, database or container.
 
    ```sh
-   git clone <this repository> corvus && cd corvus
-   cargo install --locked --path crates/corvus-cli      # needs Rust and a C compiler; no Node
+   mkdir -p ~/.local/bin && tar -xzf corvus-<version>-<target>.tar.gz -C ~/.local/bin corvus
+   export PATH="$HOME/.local/bin:$PATH"     # if it is not on your PATH already (add it to your shell profile)
+   corvus --version
    ```
 
-   Put the binary somewhere on your `PATH` (`cargo install` uses `~/.cargo/bin`).
+   On macOS the binary is signed with a personal certificate macOS does not know. If it is blocked the first time,
+   allow it once in System Settings → Privacy & Security, or clear the download flag with
+   `xattr -d com.apple.quarantine ~/.local/bin/corvus`. To build from source instead:
+   `cargo install --locked --path crates/corvus-cli` in a clone (needs Rust and a C compiler; no Node).
 
 2. Point each agent at it. That is the whole setup — no token, URL or database path:
 
@@ -27,7 +33,7 @@ is needed. An optional desktop app is the dashboard.
 
    or in any MCP client's config: `{"mcpServers": {"corvus": {"command": "corvus", "args": ["mcp"]}}}`.
    `corvus` must be on the `PATH` the client sees — clients started from a GUI often have a short one, so use
-   the absolute path (e.g. `/Users/you/.cargo/bin/corvus`) if in doubt. Set `CORVUS_AGENT_NAME` in that config if
+   the absolute path (e.g. `/Users/you/.local/bin/corvus`) if in doubt. Set `CORVUS_AGENT_NAME` in that config if
    you want a fixed agent name; otherwise one like `keen-raven` (`<adjective>-<bird>`) is generated.
 
 3. Check it:

@@ -1,6 +1,7 @@
 # Final report (plan 0010)
 
-Built on 2026-11-13 on macOS 26 (Apple silicon), Rust 1.98.1, Node 26. Everything below was run; nothing is
+Built on 2026-11-13 on macOS 26 (Apple silicon), Rust 1.98.1, Node 26; owner checks and distribution finished
+2026-11-14 to 2026-11-16. Everything below was run; nothing is
 claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unverified / deferred" section under
 [spec/plans/](../spec/plans/README.md).
 
@@ -9,7 +10,7 @@ claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unveri
 | Gate | Result |
 |---|---|
 | `make lint` | pass — `cargo fmt --check`, `clippy -D warnings`, domain purity, rusqlite confinement, no SQL clock functions, HTTP seam, generated-type drift, CLI free of desktop deps, frontend ESLint + sink scan + typecheck |
-| `make test` | pass — **495 Rust tests** (0 failed, 0 ignored), **114 dashboard unit tests**, built-bundle sink scan |
+| `make test` | pass — **497 Rust tests** (0 failed, 0 ignored), **114 dashboard unit tests**, built-bundle sink scan |
 | `make test-e2e` | pass — **46 Playwright tests** (WebKit + Chromium) against a real `corvus serve`, plus the desktop app's no-listening-socket test with a real launch |
 | Race suite, 50 consecutive runs | 50/50 (release build, core and CLI race files in parallel) |
 
@@ -43,6 +44,9 @@ claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unveri
 - `corvus hook` (release): read path median 3.8 ms, p95 4.8 ms; throttle path median 2.7 ms.
 - Cross-process wake latency in tests: ~0.3 s.
 - Release binary: 10.4 MiB (macOS arm64; links only `libSystem`, `libiconv`), 10.6 MiB (Linux arm64, static).
+- Release archives (`make dist`, 2026-11-16): 4.8–5.4 MiB per `corvus` tarball, 10.0 MiB zipped app; macOS
+  artifacts signed (`Authority=Matthew Krueger`, hardened runtime) and verified after extraction; both Linux
+  archives pass the clean-image smoke test.
 
 ## Verified by hand on this machine
 
@@ -54,20 +58,26 @@ claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unveri
 - `cargo install` from a fresh clone with Node absent; Linux clean-container smoke test; the `Corvus.app` bundle.
 - A no-context agent followed the README end to end in an isolated home directory; its findings were fixed
   (notably Quick start step 3, which needed the agent to exist before `corvus tell`).
+- **Owner, on screen (2026-11-14):** the desktop app's manual checklist — live data, `corvus tell` appears,
+  hostile text literal, monochrome menu bar icon, close-to-tray with the Dock icon hidden, still leader, Open,
+  Pause/Resume, relaunch focuses, Quit leaves the CLI working. All rows passed ([plan 0006](../spec/plans/0006-dashboard-and-desktop.md#unverified--deferred)).
+- **A real Claude Code session (2.1.325) through the hook (2026-11-14):** a prompt-time message reached the
+  model; a mid-turn message produced exactly one stop-block; no receipts were created ([plan 0007](../spec/plans/0007-delivery-helpers.md#unverified--deferred)).
+- **Upgrade across two real binaries (2026-11-14):** schema-6 binary creates data, a schema-7 build backs up
+  (`corvus.db.pre-v7.bak`) and migrates, data survives, the still-running old `corvus mcp` answers its next write
+  with `upgraded` / "restart this process", and the old binary refuses the newer database. This found a bug —
+  the restart message was hidden behind `internal error` — fixed with a dedicated `upgraded` error.
 
 ## Not verified
 
 | What | Why | Where it is tracked |
 |---|---|---|
-| The desktop app's window: live data, tray, close-to-tray, links to the system browser, Quit | the build session cannot see the screen (no Screen Recording permission); runs headless with no listener | plan 0006 manual checklist |
-| Linux desktop (WebKitGTK), `tauri-driver` window tests | no Linux desktop machine | plan 0006 |
-| A real Claude Code session using the hook (prompt injection and the stop-block) | needs the owner's Claude Code session | plan 0007 |
-| Codex resume (`codex exec resume`), its behaviour with an open window | Codex is not installed here | plan 0007 |
+| Clicking a ticket link opens the system browser | needs a Linear or Jira task; the link guard is unit- and e2e-tested | plan 0006 |
+| Linux desktop (WebKitGTK), `tauri-driver` window tests | no Linux desktop machine; deferred past v1 | plan 0006 |
+| Codex resume (`codex exec resume`), its behaviour with an open window | Codex is not installed; owner deferred it past v1 | plan 0007 |
 | Real Linear workspace and real Jira site | no accounts; adapters tested against fakes and the published schema / OpenAPI | plans 0008, 0009 |
-| macOS code signing and the first-launch override | no signing identity in the keychain | plan 0011 |
-| macOS x86_64 and Linux x86_64 builds; archives with checksums | only arm64 targets built | plan 0011 |
-| Clean macOS user account (binary and app) | needs another account / machine | plan 0011 |
-| Upgrade from an older build | only one schema version exists so far; mechanics tested in plan 0001 | plan 0011 |
+| The Gatekeeper first-launch override on a downloaded (quarantined) artifact | signatures verify, but the override needs a real download and a person at the screen | plan 0011 |
+| Clean macOS user account (binary and app; install CLI; agent connects with the shown snippet) | needs another account / machine | plan 0011 |
 
 ## Not built
 
@@ -78,6 +88,9 @@ claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unveri
 ## Known gaps and open owner decisions
 
 - Known gaps: [docs/architecture.md](architecture.md#known-gaps) (from [system/01](../spec/system/01-architecture.md#known-gaps-kept-current-feeds-the-final-architecture-note)).
-- **Owner decision needed:** the desktop app's single-instance guard listens on a Unix-domain socket in `/tmp`
-  (no network port). Keep it, or replace it with a lock file and lose "a second launch focuses the window" on Linux.
-- Open plans: 0006, 0007 and 0011 stay *In progress* until the checks above are done by the owner.
+- **Owner decisions taken (2026-11-14):** keep the single-instance local socket; the rule is "no network
+  listener" ([D0022](../spec/decisions/0022-desktop-single-instance-local-socket.md)). Releases go to GitHub
+  Releases only; signing uses the owner's self-signed certificate; Codex is deferred past v1.
+- Open plans: 0011 stays *In progress* until the owner's clean-account check and the GitHub Release is published.
+- One full-suite run on 2026-11-14 had a single test failure that six later full runs did not reproduce; its
+  name was not captured. Treat it as a possible flake to watch.

@@ -37,12 +37,13 @@ final full-suite run and report, spec reconciliation.
 - [x] Docs tests pass (guidance copy, decisions index completeness, no secret-looking strings in the repo).
 - [x] A link checker finds no broken relative links under `spec/`, `docs/` and the root docs.
 - [x] Every row of the [required test matrix](../system/09-testing.md#required-test-matrix) maps to named, passing tests.
-- [ ] The README quick start works verbatim on a clean machine with nothing but the released binary.
+- [x] The README quick start works verbatim on a clean machine with nothing but the released binary.
+      (2026-11-16, from the `make dist` archives on clean Linux images and a clean macOS home; see plan 0011.)
 
 ## Exit criteria
 
 - [x] The final report exists and makes no claim that was not exercised ([docs/report.md](../../docs/report.md)).
-- [ ] All plans are `Done` or explicitly `Abandoned` with a reason. (0006, 0007 and 0011 remain *In progress* pending owner checks — listed in the report.)
+- [ ] All plans are `Done` or explicitly `Abandoned` with a reason. (0006 and 0007 are Done; 0011 remains *In progress* pending the owner's clean-account check and publishing.)
 
 ## Open questions
 

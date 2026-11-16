@@ -70,6 +70,6 @@ In short:
 - Tracker removals do not cancel tasks, and nothing is written back to Linear or Jira.
 - No browser dashboard; a headless machine has the CLI and the HTTP API.
 - On macOS the desktop app's single-instance socket has a fixed path in shared `/tmp`; on a multi-user Mac another account can squat it ([D0022](../spec/decisions/0022-desktop-single-instance-local-socket.md)).
-- Not verified against real services or on other platforms: a real Claude Code session using the hook, Codex,
-  Linear and Jira accounts, Linux desktop (WebKitGTK), macOS signing — see the plans' "Unverified" sections and
-  the final report.
+- Not verified against real services or on other platforms: Codex, Linear and Jira accounts, the Linux desktop
+  app (WebKitGTK), a clean macOS account with a real (quarantined) download — see the plans' "Unverified"
+  sections and the final report.
