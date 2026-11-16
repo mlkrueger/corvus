@@ -51,15 +51,15 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - [x] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
       on the inbox for mail not in the shown-set; exit 2 with the formatted messages on stderr and the shown-set
       updated; exit 0 when its session is gone; never fails in any other way.
-- [ ] 8. Setup: `corvus setup claude [--remove] [--yes]`; the same snippet in
+- [x] 8. Setup: `corvus setup claude [--remove] [--yes]`; the same snippet in
       [docs/delivery-helpers.md](../../docs/delivery-helpers.md) and the app's "Connect an agent" view; README.
-- [ ] 9. Stranded mail: `corvus tell` warns when the recipient is not reachable; `reassign_mail` with
+- [x] 9. Stranded mail: `corvus tell` warns when the recipient is not reachable; `reassign_mail` with
       `corvus mail reassign` and a dashboard action ([D0025](../decisions/0025-operator-reassigns-stranded-mail.md));
       the dashboard flags unreachable agents with unread mail, shows each conversation's directory, and has a
       "wake everyone" option on a broadcast.
-- [ ] 10. Built-in `opencode` adapter, bound from the conversation link; the background leader's wake step, so
+- [x] 10. Built-in `opencode` adapter, bound from the conversation link; the background leader's wake step, so
       a running app is all that is needed.
-- [ ] 11. *(pinned with 1e)* `codex` adapter wakes with `codex queue` (enabled only if 1e passed; otherwise stays
+- [x] 11. *(pinned with 1e)* `codex` adapter wakes with `codex queue` (enabled only if 1e passed; otherwise stays
       as is and is reported).
 
 ## Verification
@@ -81,9 +81,9 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 
 ## Exit criteria
 
-- [ ] `make lint`, `make test` and `make test-e2e` pass.
+- [x] `make lint`, `make test` and `make test-e2e` pass.
 - [ ] The by-hand Claude Code checks are recorded below with a date.
-- [ ] Each built-in wake path is either confirmed on a real session or listed as unverified and not enabled.
+- [x] Each built-in wake path is either confirmed on a real session or listed as unverified and not enabled.
 
 ## Open questions
 
@@ -95,8 +95,14 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - **Resolved in step 4:** Claude Code 2.1.325 sends no `initialize` request to a stdio server on protocol
   `2026-07-28`; it names itself (`claude-code`) in every request's `_meta["io.modelcontextprotocol/clientInfo"]`.
   OpenCode names itself at `initialize`. The server reads both.
-- **`opencode run` and the adapter timeout**: the command returns when the turn ends, which can be longer than
-  300 s. Does killing it cancel the turn? Check in step 10.
+- **Resolved in step 10:** killing `opencode run` mid-turn does not cancel the turn (the service runs it), so
+  the adapter's timeout is the maximum, 3600 s.
+- **Codex hooks**: Codex 0.169.0 has hooks in Claude Code's format (`session_id` = thread id). `corvus hook`
+  does not serve them yet (it looks conversations up under `claude-code`), so a Codex agent sees mail only when
+  woken or when it reads its inbox. Candidate for a later plan.
+- **Headless Codex wake**: with no window open, `codex queue --resume` runs the turn in Codex's own background
+  service, which reads `~/.codex/config.toml`. Confirmed only with a window open; the headless case needs the
+  owner's real config to contain the Corvus server.
 - **`--fork-session`** is assumed to issue a new id (a new agent); untested.
 
 ## Unverified / deferred
@@ -138,6 +144,41 @@ OpenCode 2.3.0, a free hosted model, a logging wrapper around `corvus mcp`:
 | Does the id reach `corvus mcp`? | Yes, on every tool call: `_meta["ai.opencode/sessionID"] = "ses_…"`; `clientInfo.name = "opencode"`. Not in the environment. | The link is made at `register_session` from request metadata. |
 | Wake from outside | `opencode run --session <id> "<note>"` started a turn in the idle session in ~3 s, and the open window showed it live. | The `opencode` adapter is `["opencode", "run", "--session", "{conversation}", "{note}"]`. |
 | One MCP process per session? | **No.** The shared service runs one `corvus mcp` for all sessions (two sessions, one process, two ids). | `corvus mcp`'s "remembered session" must be kept per conversation, not per process. |
+| Kill `opencode run` mid-turn (step 10) | The turn carried on and finished 21 s after the kill. | A timeout is not a failed delivery; the adapter's limit is 3600 s. |
+| The service's environment | The shared service keeps the environment of whoever started it; a bad `CORVUS_API_TOKEN` there made `corvus mcp` fail to start. | Documented as a troubleshooting note only. |
+
+Codex 0.169.0 (step 1e, 2026-11-16), cheapest model, a logging wrapper around `corvus mcp`:
+
+| Question | Result | Consequence |
+|---|---|---|
+| Identity | `initialize` clientInfo `codex-mcp-client`; every tool call has `_meta.threadId` (a UUID) and the same id in `_meta["x-codex-turn-metadata"].thread_id`. Nothing in the environment. One MCP process per Codex process; `codex resume <id>` keeps the id. | The link is made at `register_session` from request metadata. |
+| Wake, window open | `codex queue --thread <id> --message "<note>"` returns in ~30 ms; the idle window ran the turn 6–9 s later, live. | The adapter uses `codex queue`. |
+| Wake, no window | Without `--resume` the message just sits queued. With `--resume` Codex's service ran it headless within ~2 s. With a window open `--resume` only prints a warning. | The adapter passes `--resume`. |
+| Old adapter (`codex exec resume`) on an open thread | Fails in 0.5 s: "already has an active writer". | Replaced. |
+| Tool approval | Without pre-approval a non-interactive turn fails the tool call; `mcp_servers.corvus.default_tools_approval_mode = "approve"` fixes it. | In the docs. |
+| Hooks | Present, Claude Code's format, `session_id` = thread id; `UserPromptSubmit` output reaches the model. | Not used yet (open question). |
+
+### By-hand results, steps 8–11 (2026-11-16)
+
+- **Setup (8):** `corvus setup claude --file <project settings>` on a file with an existing permission rule and
+  an unrelated hook kept both and wrote the backup; a Claude Code 2.1.325 session using the generated entries
+  was woken by `corvus tell`, replied and acked, with no permission stop (`"mcp__corvus"` allowed) and no
+  waiter left after `/exit`. **Not run against the real `~/.claude/settings.json`.**
+- **Stranded mail (9):** on a temp state directory: tell to an agent with an ended session warned and still
+  delivered; `corvus mail reassign` moved the message once (second run: nothing); the new agent's inbox showed
+  the copy with `reassigned_from`. **The dashboard parts are unit-tested only; not looked at on screen.**
+  Reachability notes: an un-ended session whose process died counts as reachable until auto-end; a waiter
+  running under an explicit `CORVUS_AGENT_NAME` on an unlinked conversation does not count.
+- **OpenCode (10):** `corvus serve` as leader; an OpenCode 2.3.0 window registered as `oc-bob`; the leader
+  started its watcher 3 s later; a plain broadcast did not wake it; `corvus tell oc-bob "What is 6*7? …"` got
+  `42` in-thread 18 s later and an ack.
+- **Codex (11):** same with a Codex 0.169.0 window registered as `cx-bob`: watcher 5 s after registering,
+  `42` and an ack 16 s after the tell. The reply was posted as a broadcast in the thread rather than with
+  `in_reply_to` (the model's choice).
+- **Gates:** `make lint`, 575 Rust tests, 119 UI unit tests, the bundle scan and `make test-e2e` (46) pass.
+- **Not yet done:** the hooks in the owner's real `~/.claude/settings.json` (two sessions in one folder, resume,
+  `/clear`); the desktop app (rather than `corvus serve`) as the leader; the dashboard's new parts on screen;
+  Codex woken with no window open; `--fork-session`.
 | Inherited environment | The service passed its own start-up environment to `corvus mcp` — including an unrelated `CLAUDE_CODE_SESSION_ID`. | Trust that variable only when `clientInfo` says the client is Claude Code. |
 
 ### Steps 3–6 on a real session (2026-11-16)

@@ -48,8 +48,13 @@ pub struct McpOptions {
 const CLIENT_CLAUDE_CODE: &str = "claude-code";
 /// The `clientInfo.name` OpenCode sends at `initialize` (measured on 2.3.0).
 const CLIENT_OPENCODE: &str = "opencode";
+/// The `clientInfo.name` Codex sends at `initialize` (measured on 0.169.0).
+const CLIENT_CODEX: &str = "codex-mcp-client";
 const META_CLIENT_INFO: &str = "io.modelcontextprotocol/clientInfo";
 const META_OPENCODE_SESSION: &str = "ai.opencode/sessionID";
+/// Codex puts the thread id on every tool call, here and inside its turn metadata.
+const META_CODEX_THREAD: &str = "threadId";
+const META_CODEX_TURN: &str = "x-codex-turn-metadata";
 
 /// Serves MCP over stdin/stdout until stdin closes; then ends the remembered sessions (best effort).
 pub async fn run_stdio(corvus: Corvus, options: McpOptions) -> Result<(), CorvusError> {
@@ -372,6 +377,12 @@ impl CorvusMcp {
         let (tool, id) = match client {
             Some(CLIENT_CLAUDE_CODE) => (AgentTool::ClaudeCode, self.options.claude_session_id.as_deref()?),
             Some(CLIENT_OPENCODE) => (AgentTool::OpenCode, meta.get(META_OPENCODE_SESSION)?.as_str()?),
+            Some(CLIENT_CODEX) => (
+                AgentTool::Codex,
+                meta.get(META_CODEX_THREAD)
+                    .or_else(|| meta.get(META_CODEX_TURN)?.get("thread_id"))?
+                    .as_str()?,
+            ),
             _ => return None,
         };
         ConversationRef::new(tool, id).ok()
@@ -458,7 +469,9 @@ impl CorvusMcp {
                 req.conversation = slot.as_ref().map(|c| ConversationInput {
                     tool: c.tool().to_string(),
                     id: c.id().to_owned(),
-                    directory: (c.tool() == AgentTool::ClaudeCode)
+                    // Claude Code and Codex run one server per session, in the session's directory;
+                    // OpenCode runs one for all its sessions.
+                    directory: (c.tool() != AgentTool::OpenCode)
                         .then(|| self.options.directory.clone())
                         .flatten(),
                 });
@@ -608,7 +621,7 @@ impl ServerHandler for CorvusMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        // Claude Code names itself in each request's `_meta`; OpenCode at `initialize`.
+        // Claude Code names itself in each request's `_meta`; OpenCode and Codex at `initialize`.
         let meta: &JsonObject = request.meta.as_deref().map_or(&context.meta, |m| m);
         let peer = context.peer.peer_info();
         let client = meta

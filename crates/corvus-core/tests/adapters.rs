@@ -111,7 +111,7 @@ fn a_user_adapter_overrides_a_builtin_and_a_broken_one_does_not_fall_back() {
     let b = adapters::load(s.path(), "codex").unwrap();
     assert_eq!(b.source, Source::Builtin);
     assert_eq!(b.adapter.title, "OpenAI Codex CLI");
-    assert_eq!(b.adapter.timeout_seconds, 300);
+    assert_eq!(b.adapter.timeout_seconds, 30);
 
     s.write(
         "codex.toml",

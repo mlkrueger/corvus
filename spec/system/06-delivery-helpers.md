@@ -180,8 +180,8 @@ title = "OpenAI Codex CLI"
 conversation = { required = true, pattern = "uuid" }      # "uuid" or "chars:<allowed>:<min>-<max>"
 
 [wake]                          # run when the bound agent has new unread messages
-command = ["codex", "exec", "resume", "{conversation}", "{note}"]
-timeout_seconds = 300
+command = ["codex", "queue", "--thread", "{conversation}", "--resume", "--message", "{note}"]
+timeout_seconds = 30
 
 [check]                         # optional: is the tool installed?
 command = ["codex", "--version"]
@@ -240,12 +240,16 @@ see their mail at their next turn if their tool has a hook.
 
 ### Built-in: `codex`
 
-- Wakes by resuming a stored Codex conversation headlessly — `codex exec resume <conversation-id> "<note>"`.
-  OpenAI's non-interactive docs describe resuming a specific session by id (checked 2026-11-13); the exact
-  flags are confirmed against the installed version in [plan 0007](../plans/0007-delivery-helpers.md).
-- This adds a new turn to the stored conversation. It does **not** type into a Codex window that is open in a
-  terminal; behaviour with an open window is checked in plan 0007.
-- Codex must be installed and signed in.
+- `["codex", "queue", "--thread", "{conversation}", "--resume", "--message", "{note}"]`; `{conversation}` is the
+  Codex thread id (a UUID). Needs Codex ≥ 0.157 (`codex queue`); measured 2026-11-16 on 0.169.0.
+- A session open in a window runs the queued note as a turn a few seconds later and shows it live. With no
+  window open, `--resume` has Codex's own background service run the turn headless.
+- The command returns at once: exit 0 means *queued*, not handled. `timeout_seconds = 30`.
+- The conversation link comes from `register_session` ([04](04-interfaces.md)); Codex has hooks in Claude
+  Code's format, but `corvus hook` does not serve them yet, so a Codex agent sees mail when woken or when it
+  reads its inbox.
+- Codex must be signed in, have the Corvus MCP server in `~/.codex/config.toml`, and have its tools
+  pre-approved (`default_tools_approval_mode = "approve"`), or a woken turn cannot read the inbox.
 
 ### Adding a tool later (for example OpenCode or Pi)
 

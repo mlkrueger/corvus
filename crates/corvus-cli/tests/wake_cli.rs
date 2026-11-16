@@ -249,7 +249,7 @@ fn bound_codex_is_woken_with_only_the_fixed_note() {
     eventually("codex woken", || r.runs() == 1);
     assert_eq!(
         r.read("run1.argv"),
-        format!("exec\nresume\n{UUID}\n{WAKE_NOTE}\n")
+        format!("queue\n--thread\n{UUID}\n--resume\n--message\n{WAKE_NOTE}\n")
     );
     assert_eq!(r.read("run1.stdin"), "");
     assert!(!r.read("run1.env").contains("CORVUS_WAKE_"));
@@ -343,7 +343,8 @@ fn agent_and_adapter_commands() {
     assert_eq!(list[0]["valid"], true);
     let shown = r.ok(&["adapter", "show", "codex"]);
     assert_eq!(shown["wake"]["command"][3], "{conversation}");
-    assert_eq!(shown["wake"]["timeout_seconds"], 300);
+    assert_eq!(shown["wake"]["timeout_seconds"], 30);
+    assert_eq!(list[1]["name"], "opencode");
     let missing = r.corvus().args(["adapter", "show", "nosuch"]).output().unwrap();
     assert_eq!(missing.status.code(), Some(4), "{}", stderr(&missing));
 

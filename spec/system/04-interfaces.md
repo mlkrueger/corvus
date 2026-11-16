@@ -104,6 +104,7 @@ Handlers are async; each calls the synchronous service through the `Corvus` faca
   |---|---|---|
   | Claude Code | `CLAUDE_CODE_SESSION_ID` in the server's environment at start | used **only** when the client says it is Claude Code — other tools can leak that variable into the server (measured with OpenCode) |
   | OpenCode | `_meta["ai.opencode/sessionID"]` on the tool call | one server process serves every OpenCode session |
+  | Codex | `_meta.threadId` on the tool call (else `_meta["x-codex-turn-metadata"].thread_id`); names itself `codex-mcp-client` at `initialize` | one server process per Codex process, in the session's directory |
   | anything else | none | registers as before, with no link |
 
   Ids are validated against the table's grammar; an invalid one is dropped (no link), never an error.

@@ -671,3 +671,63 @@ async fn an_agent_cannot_send_a_waking_broadcast() {
     assert_eq!(msg["recipient"], Value::Null);
     c.close().await.unwrap();
 }
+
+const CODEX_THREAD: &str = "01a1e62d-b63b-7610-95f7-a2f6b20654ba";
+
+/// What Codex 0.169.0 sends with every tool call (it names itself `codex-mcp-client` at `initialize`).
+fn codex(thread: &str) -> Value {
+    json!({
+        "callId": "exec-1",
+        "x-codex-turn-metadata": {"session_id": thread, "thread_id": thread, "turn_trigger": "queue"},
+        "threadId": thread,
+        "sessionId": thread,
+    })
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_codex_thread_is_linked_and_a_resume_attaches_to_the_same_agent() {
+    let t = TestDb::new();
+    let options = || McpOptions {
+        directory: Some("/work/project".into()),
+        ..McpOptions::default()
+    };
+    let (mut c, _) = Client::start_as(&t, options(), "codex-mcp-client").await;
+    let (err, a) = c
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "codex"}),
+            codex(CODEX_THREAD),
+        )
+        .await;
+    assert!(!err, "{a}");
+    let agent = a["session"]["agent_name"].as_str().unwrap().to_owned();
+    let link = &links(&t, &agent)[0];
+    assert_eq!(
+        (link.tool.as_str(), link.conversation_id.as_str()),
+        ("codex", CODEX_THREAD)
+    );
+    assert_eq!(link.directory.as_deref(), Some("/work/project"));
+    c.close().await.unwrap();
+
+    // `codex resume <id>` starts a new server process for the same thread; only the turn metadata this time.
+    let (mut c, _) = Client::start_as(&t, options(), "codex-mcp-client").await;
+    let (_, b) = c
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "codex"}),
+            json!({"x-codex-turn-metadata": {"thread_id": CODEX_THREAD}}),
+        )
+        .await;
+    assert_eq!(b["session"]["agent_name"], agent.as_str());
+
+    // The same field from another client is not a Codex thread.
+    let (mut o, _) = Client::start_as(&t, McpOptions::default(), "someone-else").await;
+    let (_, x) = o
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "x"}),
+            codex(CODEX_THREAD),
+        )
+        .await;
+    assert_ne!(x["session"]["agent_name"], agent.as_str());
+}

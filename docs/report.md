@@ -53,7 +53,7 @@ claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unveri
 - `corvus serve` with `curl` across every route group; refuses missing/short tokens; SIGTERM exits 0; token never logged.
 - Two `corvus serve` processes: leader hand-over after `kill -9` (23 s, within the 30 s retry) and a 10 s lease
   reaped by the new leader.
-- `corvus up` / `status` / `down` with a stub `codex`: woken with exactly `exec resume <id> <fixed note>`.
+- `corvus up` / `status` / `down` with a stub `codex`: woken with exactly the adapter's arguments and the fixed note (since plan 0012: `queue --thread <id> --resume --message <fixed note>`).
 - The Claude Code hook through the real binary against the documented contract (not through Claude Code itself).
 - `cargo install` from a fresh clone with Node absent; Linux clean-container smoke test; the `Corvus.app` bundle.
 - A no-context agent followed the README end to end in an isolated home directory; its findings were fixed
@@ -74,7 +74,7 @@ claimed that was not exercised. Plan-by-plan detail lives in each plan's "Unveri
 |---|---|---|
 | Clicking a ticket link opens the system browser | needs a Linear or Jira task; the link guard is unit- and e2e-tested | plan 0006 |
 | Linux desktop (WebKitGTK), `tauri-driver` window tests | no Linux desktop machine; deferred past v1 | plan 0006 |
-| Codex resume (`codex exec resume`), its behaviour with an open window | Codex is not installed; owner deferred it past v1 | plan 0007 |
+| The Codex and OpenCode wake paths with the desktop app (not `corvus serve`) as leader; Codex woken with no window open | confirmed with `corvus serve` and open windows only (2026-11-16) | plan 0012 |
 | Real Linear workspace and real Jira site | no accounts; adapters tested against fakes and the published schema / OpenAPI | plans 0008, 0009 |
 | The Gatekeeper first-launch override on a downloaded (quarantined) artifact | signatures verify, but the override needs a real download and a person at the screen | plan 0011 |
 | Clean macOS user account (binary and app; install CLI; agent connects with the shown snippet) | needs another account / machine | plan 0011 |

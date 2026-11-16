@@ -84,3 +84,7 @@ needed for waking any of the three tools, so it is not built now.
 - 2026-11-16 — Created after the owner asked how to "step into" and wake running sessions. Tests and research
   are summarised in [plan 0012](../plans/0012-session-identity-and-wake.md#unverified--deferred).
 - 2026-11-16 — Accepted by the owner.
+- 2026-11-16 — Both remaining channels confirmed on real sessions with `corvus serve` as the leader: OpenCode
+  2.3.0 (`opencode run --session`) and Codex 0.169.0 (`codex queue --thread … --resume`); each idle session
+  answered a question in-thread with nobody typing. The built-in `codex` adapter now uses `codex queue`.
+  `codex exec resume` against an open window fails with "already has an active writer" rather than interleaving.

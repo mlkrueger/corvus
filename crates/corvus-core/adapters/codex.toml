@@ -5,8 +5,8 @@ title = "OpenAI Codex CLI"
 conversation = { required = true, pattern = "uuid" }
 
 [wake]
-command = ["codex", "exec", "resume", "{conversation}", "{note}"]
-timeout_seconds = 300
+command = ["codex", "queue", "--thread", "{conversation}", "--resume", "--message", "{note}"]
+timeout_seconds = 30
 
 [check]
 command = ["codex", "--version"]

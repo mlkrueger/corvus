@@ -200,8 +200,27 @@ corvus status
 corvus down
 ```
 
-For Codex, the conversation id is the session id of the Codex conversation you want resumed. Waking runs
-`codex exec resume <id> "<note>"`, which adds a turn to that stored conversation.
+You rarely need to bind by hand. An OpenCode or Codex session that has called `register_session` is linked to
+its agent automatically, and **while the desktop app (or `corvus serve`) is running it is woken for you**: mail
+addressed to the agent, or a broadcast sent with `corvus tell --all --wake`, starts a turn in that session
+within a few seconds. `corvus agent bind` + `corvus up` are for headless machines and for overriding the link.
+
+| Tool | How it is woken | What you need |
+|---|---|---|
+| OpenCode 2.x | `opencode run --session <id> "<note>"` — an open window shows the turn live | the Corvus MCP server in `opencode.json` |
+| Codex ≥ 0.157 | `codex queue --thread <id> --resume --message "<note>"` — an open window runs it a few seconds later; with no window, Codex's background service runs it | see below |
+
+Codex needs the Corvus tools pre-approved, or a woken turn stops at the approval step. In
+`~/.codex/config.toml`:
+
+```toml
+[mcp_servers.corvus]
+command = "corvus"
+args = ["mcp"]
+default_tools_approval_mode = "approve"
+```
+
+For an explicit Codex binding, the conversation id is the Codex thread id.
 
 ## Supporting a new tool: write an adapter
 
