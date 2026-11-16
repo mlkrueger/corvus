@@ -294,6 +294,30 @@ impl Database {
         Ok((db, report))
     }
 
+    /// Opens an existing, fully migrated database for reading and writing **without migrating**. Fails if
+    /// the file is missing or at another schema version. For the hook's one write
+    /// ([system/06](../../../../spec/system/06-delivery-helpers.md#session-events)), which must never migrate.
+    pub fn open_existing(path: &Path, busy_timeout_ms: u32) -> std::result::Result<Self, OpenError> {
+        if !path.is_file() {
+            return Err(OpenError::Missing(path.to_owned()));
+        }
+        let writer = open_conn(path, Role::Writer, busy_timeout_ms)?;
+        let v = user_version(&writer).map_err(|e| OpenError::Sql(sql_err(e)))?;
+        if v != SCHEMA_VERSION {
+            return Err(OpenError::SchemaMismatch {
+                database: v,
+                binary: SCHEMA_VERSION,
+            });
+        }
+        Ok(Self {
+            path: path.to_owned(),
+            expected_version: v,
+            writer: Mutex::new(writer),
+            readers: Mutex::new(Vec::new()),
+            stats: WriteCounters::default(),
+        })
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }

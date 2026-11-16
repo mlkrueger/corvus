@@ -21,6 +21,7 @@ pub fn main() {
             database_path: config.database_path.clone(),
             operator_name: config.operator_name.to_string(),
             throttle_ms: i64::try_from(config.hook_throttle_seconds).unwrap_or(5) * 1000,
+            host_pid: host_pid(),
         };
         run(&stdin, &env)
     }));
@@ -28,4 +29,13 @@ pub fn main() {
         let mut stdout = std::io::stdout().lock();
         let _ = writeln!(stdout, "{text}");
     }
+}
+
+/// The `claude` process this hook belongs to: `CLAUDE_PID`, else the parent (hooks are its direct children).
+fn host_pid() -> Option<u32> {
+    std::env::var("CLAUDE_PID")
+        .ok()
+        .and_then(|p| p.trim().parse::<u32>().ok())
+        .filter(|p| *p > 1)
+        .or_else(|| Some(std::os::unix::process::parent_id()).filter(|p| *p > 1))
 }

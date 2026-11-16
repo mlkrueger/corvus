@@ -43,9 +43,9 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
       Link and carry-over written in one transaction with an audit event.
 - [x] 4. `register_session` takes an optional conversation reference: known → attach to its agent; unknown →
       register as today and record the link. `corvus mcp` fills it from the environment or request metadata.
-- [ ] 5. `corvus hook` resolves its agent by conversation when `CORVUS_AGENT_NAME` is absent; no link → silent
+- [x] 5. `corvus hook` resolves its agent by conversation when `CORVUS_AGENT_NAME` is absent; no link → silent
       exit 0. Explicit name still wins.
-- [ ] 6. `/clear` carry-over, by the mechanism chosen in 1c.
+- [x] 6. `/clear` carry-over, by the mechanism chosen in 1c.
 - [ ] 7. `corvus hook wait`: one waiter per (agent, conversation) under a file lock (a second exits 0); blocks
       on the inbox for mail not in the shown-set; exit 2 with the formatted messages on stderr and the shown-set
       updated; exit 0 when its session is gone; never fails in any other way.
@@ -136,7 +136,17 @@ OpenCode 2.3.0, a free hosted model, a logging wrapper around `corvus mcp`:
 | One MCP process per session? | **No.** The shared service runs one `corvus mcp` for all sessions (two sessions, one process, two ids). | `corvus mcp`'s "remembered session" must be kept per conversation, not per process. |
 | Inherited environment | The service passed its own start-up environment to `corvus mcp` — including an unrelated `CLAUDE_CODE_SESSION_ID`. | Trust that variable only when `clientInfo` says the client is Claude Code. |
 
-Still open: 1c (the `/clear` mechanism is feasible — both events fire in one process with the same `CLAUDE_PID`
+### Steps 3–6 on a real session (2026-11-16)
+
+Claude Code 2.1.325, interactive, release `corvus`, isolated state directory, `corvus hook` registered with **no
+agent name** on `SessionStart`, `SessionEnd`, `UserPromptSubmit` and `Stop`, `corvus mcp` as the MCP server:
+the model called `register_session` → agent `solar-raven` linked to the conversation with its directory;
+`corvus tell solar-raven …` from outside → the next prompt was shown the message and the model answered with
+its code; `/clear` → `conversation.carried`, the new id resolves to `solar-raven`, and the next prompt was shown
+the unread message again (the hook's state file for the new id records it). Not yet run with the hooks in the
+real user-level `~/.claude/settings.json`.
+
+Earlier note, now superseded by step 6: 1c (the `/clear` mechanism is feasible — both events fire in one process with the same `CLAUDE_PID`
 — but the write path is not chosen), 1e (Codex 0.169.0 is installed; needs the owner to sign in).
 
 From documentation and source only, not run: the OpenCode 2.x service API and MCP session metadata (the 2.3.0

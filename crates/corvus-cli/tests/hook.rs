@@ -362,3 +362,220 @@ fn fast_on_the_throttle_path_and_the_read_path() {
     );
     eprintln!("hook p95: read {read:?}, throttled {throttled:?}");
 }
+
+// ---------- identity by conversation (plan 0012, D0023) ----------
+
+const CONV_A: &str = "48ab6180-bde1-4698-b7a6-ac1a9e20db89";
+const CONV_B: &str = "6b9d1bc1-bfe4-4dd2-b6f8-03ed95f1def4";
+
+/// Registers `agent` with a Claude Code conversation link, the way `corvus mcp` does.
+fn link(home: &Home, agent: &str, conversation: &str) {
+    ok(home, &["health"]); // create and migrate
+    let (db, _) = Database::open(&home.db_path(), &corvus_core::SystemClock).unwrap();
+    let services = corvus_core::Services::new(
+        std::sync::Arc::new(db),
+        std::sync::Arc::new(corvus_core::SystemClock),
+        corvus_core::Settings::UNUSED,
+    );
+    services
+        .sessions()
+        .register(&corvus_core::api::RegisterSession {
+            agent_name: Some(agent.into()),
+            client_name: "claude-code".into(),
+            conversation: Some(corvus_core::api::ConversationInput {
+                tool: "claude-code".into(),
+                id: conversation.into(),
+                directory: None,
+            }),
+            ..Default::default()
+        })
+        .unwrap();
+}
+
+fn linked_agent(home: &Home, conversation: &str) -> Option<String> {
+    let (db, _) = Database::open(&home.db_path(), &corvus_core::SystemClock).unwrap();
+    let services = corvus_core::Services::new(
+        std::sync::Arc::new(db),
+        std::sync::Arc::new(corvus_core::SystemClock),
+        corvus_core::Settings::UNUSED,
+    );
+    let c = corvus_domain::ConversationRef::new(corvus_domain::Tool::ClaudeCode, conversation).unwrap();
+    services
+        .sessions()
+        .agent_for_conversation(&c)
+        .unwrap()
+        .map(|a| a.to_string())
+}
+
+/// The hook with no `CORVUS_AGENT_NAME`, as a user-level hook runs.
+fn bare(home: &Home, event: &Value, pid: &str) -> (String, i32) {
+    hook_with(home, None, event, &[("CLAUDE_PID", pid)])
+}
+
+#[test]
+fn without_a_name_the_hook_serves_the_agent_linked_to_the_conversation() {
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    ok(&home, &["tell", "carol", "for carol only"]);
+
+    let (out, code) = bare(&home, &ev("UserPromptSubmit", CONV_A), "4242");
+    assert_eq!(code, 0);
+    assert!(context(&out).contains("for carol only"));
+    assert_eq!(
+        bare(&home, &ev("UserPromptSubmit", CONV_A), "4242").0,
+        "",
+        "once per conversation"
+    );
+
+    // The state lives apart from the per-agent files and remembers who the conversation is.
+    let state = home
+        .state_dir()
+        .join("hook/by-conversation")
+        .join(format!("{CONV_A}.json"));
+    let v: Value = serde_json::from_str(&std::fs::read_to_string(state).unwrap()).unwrap();
+    assert_eq!(v["agent"], "carol");
+}
+
+#[test]
+fn a_session_that_never_connected_is_left_alone() {
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    ok(&home, &["tell", "carol", "not for strangers"]);
+    let (db, _) = Database::open(&home.db_path(), &ManualClock::default()).unwrap();
+    db.checkpoint().unwrap();
+    drop(db);
+    let before = db_bytes(&home);
+    for name in [
+        "UserPromptSubmit",
+        "PostToolUse",
+        "Stop",
+        "SessionStart",
+        "SessionEnd",
+    ] {
+        let (out, code) = bare(&home, &ev(name, CONV_B), "4242");
+        assert_eq!((out.as_str(), code), ("", 0), "{name}");
+    }
+    assert_eq!(db_bytes(&home), before, "nothing was written to the database");
+}
+
+#[test]
+fn an_explicit_name_wins_over_the_link_and_a_bad_one_never_falls_back() {
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    ok(&home, &["session", "register", "--agent", "bob"]);
+    ok(&home, &["tell", "bob", "for bob"]);
+    ok(&home, &["tell", "carol", "for carol"]);
+    let (out, _) = hook_with(&home, Some("bob"), &ev("UserPromptSubmit", CONV_A), &[]);
+    let text = context(&out);
+    assert!(text.contains("for bob") && !text.contains("for carol"), "{text}");
+
+    let (out, code) = hook_with(&home, Some("not a name!"), &ev("UserPromptSubmit", CONV_A), &[]);
+    assert_eq!((out.as_str(), code), ("", 0));
+}
+
+#[test]
+fn a_clear_carries_the_agent_to_the_new_conversation() {
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    ok(&home, &["tell", "carol", "still yours after the clear"]);
+    assert!(context(&bare(&home, &ev("UserPromptSubmit", CONV_A), "4242").0).contains("still yours"));
+
+    // What Claude Code fires on /clear (measured): SessionEnd with the old id, SessionStart with a new one.
+    let end = json!({"hook_event_name": "SessionEnd", "session_id": CONV_A, "reason": "clear"});
+    let start = json!({"hook_event_name": "SessionStart", "session_id": CONV_B, "source": "clear"});
+    assert_eq!(bare(&home, &end, "4242"), (String::new(), 0));
+    assert_eq!(bare(&home, &start, "4242"), (String::new(), 0));
+
+    assert_eq!(linked_agent(&home, CONV_B).as_deref(), Some("carol"));
+    assert_eq!(
+        linked_agent(&home, CONV_A).as_deref(),
+        Some("carol"),
+        "the old id still resolves"
+    );
+    // The context was cleared, so the unread message is shown again under the new id.
+    assert!(context(&bare(&home, &ev("UserPromptSubmit", CONV_B), "4242").0).contains("still yours"));
+    // The note is consumed, and the process's current conversation is recorded for the waiter.
+    assert!(!home.state_dir().join("hook/clear/4242.json").exists());
+    let current = std::fs::read_to_string(home.state_dir().join("hook/current/4242.json")).unwrap();
+    assert!(current.contains(CONV_B));
+}
+
+#[test]
+fn a_clear_in_another_process_or_a_stale_note_carries_nothing() {
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    let end = json!({"hook_event_name": "SessionEnd", "session_id": CONV_A, "reason": "clear"});
+    let start = json!({"hook_event_name": "SessionStart", "session_id": CONV_B, "source": "clear"});
+
+    // Another process's start does not pick up this process's note.
+    bare(&home, &end, "4242");
+    bare(&home, &start, "5555");
+    assert_eq!(linked_agent(&home, CONV_B), None);
+
+    // A note older than a minute is ignored (and removed).
+    let note = home.state_dir().join("hook/clear/4242.json");
+    std::fs::write(&note, json!({"from": CONV_A, "at": 1}).to_string()).unwrap();
+    bare(&home, &start, "4242");
+    assert_eq!(linked_agent(&home, CONV_B), None);
+    assert!(!note.exists());
+
+    // Only a clear leaves a note; a normal exit does not.
+    let exit = json!({"hook_event_name": "SessionEnd", "session_id": CONV_A, "reason": "prompt_input_exit"});
+    bare(&home, &exit, "4242");
+    assert!(!note.exists());
+
+    // A start that is not a clear never carries, even with a fresh note.
+    bare(&home, &end, "4242");
+    let resume = json!({"hook_event_name": "SessionStart", "session_id": CONV_B, "source": "resume"});
+    bare(&home, &resume, "4242");
+    assert_eq!(linked_agent(&home, CONV_B), None);
+}
+
+#[test]
+fn session_events_never_fail_never_migrate_and_cannot_escape_the_state_directory() {
+    // No database at all.
+    let home = Home::new();
+    let end = json!({"hook_event_name": "SessionEnd", "session_id": CONV_A, "reason": "clear"});
+    let start = json!({"hook_event_name": "SessionStart", "session_id": CONV_B, "source": "clear"});
+    assert_eq!(bare(&home, &end, "4242"), (String::new(), 0));
+    assert_eq!(bare(&home, &start, "4242"), (String::new(), 0));
+    assert!(!home.db_path().exists(), "the hook never creates a database");
+
+    // An older schema: the carry is skipped and the database is not migrated.
+    let home = Home::new();
+    std::fs::create_dir_all(home.state_dir()).unwrap();
+    let all = migrator::embedded();
+    let (db, _) =
+        Database::open_with_migrations(&home.db_path(), &all[..all.len() - 1], &ManualClock::default())
+            .unwrap();
+    drop(db);
+    bare(&home, &end, "4242");
+    assert_eq!(bare(&home, &start, "4242"), (String::new(), 0));
+    let version = Command::new("sqlite3")
+        .arg(home.db_path())
+        .arg("PRAGMA user_version")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+    if let Some(v) = version.filter(|v| !v.is_empty()) {
+        assert_eq!(v, (all.len() - 1).to_string(), "not migrated by the hook");
+    }
+
+    // Hostile ids and process ids write nothing outside hook/.
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    for (session, pid) in [
+        ("../../evil", "4242"),
+        (CONV_A, "../../evil"),
+        (CONV_A, "0"),
+        (CONV_A, "-7"),
+    ] {
+        for name in ["SessionEnd", "SessionStart"] {
+            let e =
+                json!({"hook_event_name": name, "session_id": session, "reason": "clear", "source": "clear"});
+            assert_eq!(bare(&home, &e, pid), (String::new(), 0), "{session:?} {pid:?}");
+        }
+    }
+    assert!(!home.path().join("evil").exists() && !home.path().join("evil.json").exists());
+    assert!(!home.state_dir().join("evil.json").exists());
+}

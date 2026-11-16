@@ -36,6 +36,14 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// For callers whose one operation reads no duration (the hook's conversation carry-over).
+    pub const UNUSED: Self = Self {
+        lease_ms: 0,
+        active_ms: 0,
+        idle_ms: 0,
+        auto_end_ms: 0,
+    };
+
     pub fn from_config(c: &Config) -> Self {
         let ms = |s: u64| i64::try_from(s).unwrap_or(i64::MAX / 1000) * 1000;
         Self {
