@@ -27,7 +27,7 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
         throwaway keychain), Linux matrix (`make native-linux-<arch> smoke-linux-<arch>`), publish job.
         New Makefile target `native-linux-%`.
 - [x] 4. Decision record, defaults rows 57 and 58, `docs/release.md`.
-- [ ] 5. Push; get `ci.yml` green on both jobs.
+- [x] 5. Push; get `ci.yml` green on both jobs.
 - [ ] 6. Create the `release` environment (owner approval required); owner exports the certificate and sets
         `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD` and the variable `CORVUS_SIGN_IDENTITY`.
 - [ ] 7. Manual run of `release.yml` (no publish): all jobs green, artifacts inspected.
@@ -36,7 +36,7 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
 ## Verification
 
 - [x] `actionlint` passes on both workflows.
-- [ ] CI green on a push: macOS (`make lint`, `make test`) and Linux.
+- [x] CI green on a push: macOS (`make lint`, `make test`) and Linux (run 44267004775, 2026-11-18).
 - [ ] Manual release run: five archives; macOS artifacts show the expected `Authority`; both Linux smoke tests
       pass on native runners.
 - [ ] Tagged run with the certificate missing fails before building.
@@ -52,11 +52,12 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
 
 - Does `codesign` accept the self-signed identity from a throwaway keychain on a runner without a trust
   setting? Answered by step 7.
-- Do any tests depend on timing or tools that the runners lack? Answered by step 5.
+- **Resolved in step 5:** no test depended on timing or tools the runners lack; the suite passed on both.
 
 ## Unverified / deferred
 
-- Nothing has run on GitHub yet: the workflows are written and linted only.
+- `ci.yml` has run green. `release.yml` has not run yet; the `release` environment exists (owner approval
+  required) but holds no certificate.
 
 ## Decisions
 
