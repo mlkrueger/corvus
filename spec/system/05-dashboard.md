@@ -143,13 +143,21 @@ horizontally when narrow.
 - **Connect an agent.** A help view lists the available adapters (and whether each tool is installed) and shows the MCP and hook configuration snippets with the real path of the
   bundled `corvus` binary, and an "Install command-line tool" action that links it into the user's `PATH`
   (`~/.local/bin`; never needs elevated rights).
+- **Updates** ([D0027](../decisions/0027-app-updates-from-github-releases.md)). Unless
+  `CORVUS_UPDATE_CHECK=off`, the app asks GitHub Releases for `latest.json` once after launch and at most every
+  six hours. When a newer version exists the dashboard shows a banner with "Install and restart"; nothing is
+  downloaded before that click. The install downloads the update archive, verifies it against the updater
+  public key in the app's configuration, stops background work, checkpoints the database, replaces the app and
+  restarts it. The Connect view has "Check for updates", which ignores the six-hour cache and shows a failure.
+  The `corvus` link made by "Install command-line tool" points into the bundle, so it is the new version too.
 - **Single instance.** A second launch focuses the existing window. `corvus ui` does the same from a terminal
   ([04](04-interfaces.md#cli-corvus)). The rendezvous is a Unix-domain socket in `/tmp` on macOS and a D-Bus
   session name on Linux; the callback ignores the caller's arguments and only shows the window
   ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).
 - **Isolation**:
   - IPC capabilities are limited to `api` plus a few app commands (`app_info`, `install_cli`,
-    `set_background_paused`). No shell, filesystem, HTTP-client or opener plugin is exposed to the page.
+    `set_background_paused`, `check_update`, `install_update`). No shell, filesystem, HTTP-client, opener or
+    updater plugin permission is granted to the page; the updater runs in Rust behind the last two commands.
   - The webview loads only the bundled assets. A navigation guard cancels every other navigation and every
     new-window request; `https:` targets are handed to the system browser from Rust.
   - Tracker credentials are read from the environment / env file and never reach the webview.

@@ -1,10 +1,13 @@
 <script lang="ts">
   import { appInfo, errorText, installCli, type AppInfo } from '../lib/api';
+  import type { UpdateState } from '../lib/update.svelte';
 
   interface Props {
     onClose: () => void;
+    /** Present in the app shell; absent, the update line is not shown. */
+    updates?: UpdateState;
   }
-  let { onClose }: Props = $props();
+  let { onClose, updates }: Props = $props();
 
   let info = $state<AppInfo | null>(null);
   let loadError = $state<string | null>(null);
@@ -46,6 +49,23 @@
   </div>
   {#if info}
     <p class="muted">Corvus {info.version}</p>
+    {#if updates}
+      <p data-testid="update-line">
+        {#if updates.status && !updates.status.enabled}
+          Update checks are turned off (<code>CORVUS_UPDATE_CHECK=off</code>).
+        {:else}
+          {#if updates.status?.available}
+            Version {updates.status.available} is available.
+          {:else if updates.status && !updates.status.error}
+            Up to date.
+          {/if}
+          <button type="button" onclick={() => updates.check(true)} disabled={updates.checking}>
+            {updates.checking ? 'Checking...' : 'Check for updates'}
+          </button>
+        {/if}
+      </p>
+      {#if updates.error}<p class="error" role="alert">{updates.error}</p>{/if}
+    {/if}
     <p>
       Binary: <code>{info.corvus_path ?? 'not found'}</code>
     </p>

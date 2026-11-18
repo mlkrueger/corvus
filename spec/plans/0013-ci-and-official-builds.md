@@ -28,17 +28,18 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
         New Makefile target `native-linux-%`.
 - [x] 4. Decision record, defaults rows 57 and 58, `docs/release.md`.
 - [x] 5. Push; get `ci.yml` green on both jobs.
-- [ ] 6. Create the `release` environment (owner approval required); owner exports the certificate and sets
+- [x] 6. Create the `release` environment (owner approval required); owner exports the certificate and sets
         `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD` and the variable `CORVUS_SIGN_IDENTITY`.
-- [ ] 7. Manual run of `release.yml` (no publish): all jobs green, artifacts inspected.
+- [x] 7. Manual run of `release.yml` (no publish): all jobs green, artifacts inspected.
 - [ ] 8. First tagged release from the workflow.
 
 ## Verification
 
 - [x] `actionlint` passes on both workflows.
 - [x] CI green on a push: macOS (`make lint`, `make test`) and Linux (run 44267004775, 2026-11-18).
-- [ ] Manual release run: five archives; macOS artifacts show the expected `Authority`; both Linux smoke tests
-      pass on native runners.
+- [x] Manual release run (44269799079, 2026-11-18): all jobs green; "1 identity imported", both macOS binaries
+      and the app signed (signature present; the step printed no `Authority` line because it used `-dv`, now
+      `-dvv`); both Linux smoke tests pass on native runners.
 - [ ] Tagged run with the certificate missing fails before building.
 - [ ] Tagged run: the GitHub Release holds the five archives and `SHA256SUMS`; a downloaded app opens after the
       Gatekeeper override; a downloaded Linux binary passes `corvus health`.
@@ -50,14 +51,15 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
 
 ## Open questions
 
-- Does `codesign` accept the self-signed identity from a throwaway keychain on a runner without a trust
-  setting? Answered by step 7.
+- **Resolved in step 7:** `codesign` signs with the self-signed identity from a throwaway keychain on a runner
+  with no trust setting.
 - **Resolved in step 5:** no test depended on timing or tools the runners lack; the suite passed on both.
 
 ## Unverified / deferred
 
-- `ci.yml` has run green. `release.yml` has not run yet; the `release` environment exists (owner approval
-  required) but holds no certificate.
+- The signing certificate is a self-signed "Corvus" code-signing certificate made for this purpose (not the
+  "Matthew Krueger" one used for the local builds of plan 0011).
+- Not yet done: a tagged run (publishing, and the missing-certificate failure path).
 
 ## Decisions
 

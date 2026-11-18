@@ -90,6 +90,34 @@ export async function installCli(): Promise<void> {
   }
 }
 
+export interface UpdateStatus {
+  /** `false` when update checks are turned off (`CORVUS_UPDATE_CHECK=off`). */
+  enabled: boolean;
+  current: string;
+  /** The newer version, when there is one. */
+  available: string | null;
+  /** Why the last check failed, if it did. */
+  error: string | null;
+}
+
+/** App command `check_update`. `force` skips the app's six-hour memory. */
+export async function checkUpdate(force: boolean): Promise<UpdateStatus> {
+  try {
+    return (await transport('check_update', { force })) as UpdateStatus;
+  } catch (e) {
+    throw new ApiError(0, 'ipc_error', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** App command `install_update`: installs the newer version and restarts the app. Resolves only on failure paths. */
+export async function installUpdate(): Promise<void> {
+  try {
+    await transport('install_update');
+  } catch (e) {
+    throw new ApiError(0, 'ipc_error', e instanceof Error ? e.message : String(e));
+  }
+}
+
 /** A fresh idempotency key; every operator action generates its own per click. */
 export function newKey(): string {
   return crypto.randomUUID();

@@ -67,6 +67,19 @@ Open the desktop app (`corvus ui` launches it). It shows sessions and presence, 
 Linear and Jira boards. It needs no server, token or port: it is a normal Corvus process with the dashboard
 inside it, and it never opens a network port.
 
+### Updates
+
+The app checks GitHub Releases for a newer version when it starts and every few hours, and shows "Install and
+restart" when there is one. Nothing is downloaded until you click it; the download is verified against a key
+built into the app. Set `CORVUS_UPDATE_CHECK=off` to stop the check. "Check for updates" in *Connect an agent*
+checks now.
+
+To keep the `corvus` command the same version as the app, use the app's own copy: *Connect an agent* →
+*Install command-line tool* links `~/.local/bin/corvus` into the app, so an app update is a `corvus` update. Run
+`corvus setup claude` through that link (and point other tools' configuration at it) so hooks follow along. A
+`corvus` installed any other way (a downloaded archive, `cargo install`) is not updated: replace it yourself, or
+remove it and use the link. The app must live in `Applications` to be able to replace itself.
+
 ## When do I need `corvus serve`?
 
 Only for two things:

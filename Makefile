@@ -151,8 +151,20 @@ dist-macos:
 	@$(DIST)/stage/aarch64-apple-darwin/corvus --version
 
 # The desktop app for this Mac's architecture, zipped with its signature intact.
+# With the updater key (TAURI_SIGNING_PRIVATE_KEY, or TAURI_SIGNING_PRIVATE_KEY_PATH) it also writes what the
+# app's updater needs (D0027): the app as a signed .tar.gz and latest.json pointing at its release URL. The
+# archive is made here, after codesign, so the app inside it carries its signature.
+APP_ARCH := $(shell uname -m)
+UPDATE_ARCHIVE := Corvus-$(VERSION)-macos-$(APP_ARCH).app.tar.gz
+UPDATE_URL ?= https://github.com/mlkrueger/corvus/releases/download/v$(VERSION)/$(UPDATE_ARCHIVE)
 dist-app: bundle
-	ditto -c -k --keepParent target/release/bundle/macos/Corvus.app $(DIST)/Corvus-$(VERSION)-macos-$(shell uname -m).app.zip
+	ditto -c -k --keepParent target/release/bundle/macos/Corvus.app $(DIST)/Corvus-$(VERSION)-macos-$(APP_ARCH).app.zip
+	@if [ -n "$$TAURI_SIGNING_PRIVATE_KEY$$TAURI_SIGNING_PRIVATE_KEY_PATH" ]; then \
+	  COPYFILE_DISABLE=1 tar -C target/release/bundle/macos -czf $(DIST)/$(UPDATE_ARCHIVE) Corvus.app && \
+	  ui/node_modules/.bin/tauri signer sign --password "$$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" $(DIST)/$(UPDATE_ARCHIVE) > /dev/null && \
+	  node ui/scripts/update-manifest.mjs $(VERSION) $(APP_ARCH) $(UPDATE_URL) $(DIST)/$(UPDATE_ARCHIVE).sig > $(DIST)/latest.json && \
+	  echo "update archive: $(DIST)/$(UPDATE_ARCHIVE) (+ .sig, latest.json)"; \
+	else echo "no updater key: no update archive (set TAURI_SIGNING_PRIVATE_KEY_PATH)"; fi
 
 # Static musl binaries, cross-compiled in a throwaway container of this machine's architecture (clang + rust-lld
 # + Debian's musl headers for the target). Emulating the foreign architecture instead crashed rustc.

@@ -30,6 +30,7 @@ serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
 
 [dev-dependencies]
 corvus-core = { workspace = true, features = ["test-support"] }

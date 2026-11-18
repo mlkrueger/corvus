@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { Dashboard } from './lib/dashboard.svelte';
   import type { MessageFilter } from './lib/messages';
   import { Poller } from './lib/poll.svelte';
   import { SOURCES_POLL_MS, SourcesState } from './lib/sources.svelte';
+  import { UPDATE_POLL_MS, UpdateState } from './lib/update.svelte';
   import { effectiveTheme, saveTheme, type ThemeChoice } from './lib/theme';
   import Activity from './panels/Activity.svelte';
   import Connect from './panels/Connect.svelte';
@@ -12,11 +14,13 @@
   import Sessions from './panels/Sessions.svelte';
   import Sources from './panels/Sources.svelte';
   import Tasks from './panels/Tasks.svelte';
+  import UpdateBanner from './panels/UpdateBanner.svelte';
 
   const dash = new Dashboard();
   const poller = new Poller(() => dash.refresh());
   const sources = new SourcesState();
   const sourcePoller = new Poller(() => sources.refresh(), SOURCES_POLL_MS);
+  const updates = new UpdateState();
 
   let now = $state(Date.now());
   let theme = $state<ThemeChoice>(effectiveTheme());
@@ -26,7 +30,11 @@
     poller.start();
     sourcePoller.start();
     const clock = setInterval(() => (now = Date.now()), 1000);
+    // Untracked: `check` reads and writes its own state, which must not re-run this effect.
+    untrack(() => void updates.check());
+    const updateClock = setInterval(() => void updates.check(), UPDATE_POLL_MS);
     return () => {
+      clearInterval(updateClock);
       poller.stop();
       sourcePoller.stop();
       clearInterval(clock);
@@ -71,7 +79,8 @@
     onUnreadClick={() => setFilter({ mode: 'unread' })}
     onConnect={() => (showConnect = !showConnect)}
   />
-  {#if showConnect}<Connect onClose={() => (showConnect = false)} />{/if}
+  <UpdateBanner {updates} />
+  {#if showConnect}<Connect {updates} onClose={() => (showConnect = false)} />{/if}
   <main class="grid">
     <div class="area-sessions">
       <Sessions sessions={dash.overview?.sessions ?? []} agents={dash.overview?.agents ?? []} onChanged={changed} tasks={dash.overview ? [...dash.overview.tasks.claimed, ...dash.overview.tasks.open] : []} {now} />

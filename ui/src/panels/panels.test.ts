@@ -9,6 +9,8 @@ import Header from './Header.svelte';
 import Messages from './Messages.svelte';
 import Sessions from './Sessions.svelte';
 import Tasks from './Tasks.svelte';
+import UpdateBanner from './UpdateBanner.svelte';
+import { UpdateState } from '../lib/update.svelte';
 
 let restore: () => void = () => {};
 afterEach(() => restore());
@@ -414,5 +416,92 @@ describe('Connect', () => {
     restore = setTransport(fakeTransport({}).transport);
     render(Connect, { onClose: vi.fn() });
     expect(await screen.findByRole('status')).toHaveTextContent('only available in the desktop app');
+  });
+});
+
+describe('Updates', () => {
+  const status = (over = {}) => ({ enabled: true, current: '0.1.0', available: null, error: null, ...over });
+  const info = {
+    version: '0.1.0',
+    corvus_path: '/Applications/Corvus.app/corvus',
+    cli_installed: true,
+    adapters: [],
+    mcp_snippet: '{}',
+    hook_snippet: 'hook',
+  };
+
+  it('the banner is absent with no update and offers the install when there is one', async () => {
+    const t = fakeTransport({ check_update: status(), install_update: null });
+    restore = setTransport(t.transport);
+    const updates = new UpdateState();
+    render(UpdateBanner, { updates });
+    await updates.check();
+    expect(screen.queryByRole('status', { name: 'Update available' })).toBeNull();
+
+    updates.status = status({ available: '0.2.0' });
+    const banner = await screen.findByRole('status', { name: 'Update available' });
+    expect(banner).toHaveTextContent('Corvus 0.2.0 is available (this is 0.1.0).');
+    await fireEvent.click(screen.getByRole('button', { name: 'Install and restart' }));
+    expect(t.calls.map((c) => c.cmd)).toEqual(['check_update', 'install_update']);
+    expect(t.calls[0].args).toEqual({ force: false });
+  });
+
+  it('a failed install is shown and the button comes back', async () => {
+    const t = fakeTransport({
+      install_update: () => {
+        throw new Error('cannot download the update: offline');
+      },
+    });
+    restore = setTransport(t.transport);
+    const updates = new UpdateState();
+    updates.status = status({ available: '0.2.0' });
+    render(UpdateBanner, { updates });
+    await fireEvent.click(screen.getByRole('button', { name: 'Install and restart' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('cannot download the update: offline');
+    expect(screen.getByRole('button', { name: 'Install and restart' })).toBeEnabled();
+  });
+
+  it('a background check that fails stays silent; a requested one reports it', async () => {
+    restore = setTransport(fakeTransport({ check_update: status({ error: 'cannot check for updates: offline' }) }).transport);
+    const updates = new UpdateState();
+    await updates.check();
+    expect(updates.error).toBeNull();
+    await updates.check(true);
+    expect(updates.error).toBe('cannot check for updates: offline');
+  });
+
+  it('outside the app a background check does nothing', async () => {
+    restore = setTransport(fakeTransport({}).transport);
+    const updates = new UpdateState();
+    await updates.check();
+    expect(updates.status).toBeNull();
+    expect(updates.error).toBeNull();
+  });
+
+  it('Connect: "Check for updates" forces a check and reports the result', async () => {
+    const t = fakeTransport({ app_info: info, check_update: status({ available: '0.2.0' }) });
+    restore = setTransport(t.transport);
+    const updates = new UpdateState();
+    render(Connect, { onClose: vi.fn(), updates });
+    await fireEvent.click(await screen.findByRole('button', { name: 'Check for updates' }));
+    expect(await screen.findByText(/Version 0.2.0 is available/)).toBeInTheDocument();
+    expect(t.calls.find((c) => c.cmd === 'check_update')?.args).toEqual({ force: true });
+  });
+
+  it('Connect: says so when checks are turned off, with no button', async () => {
+    restore = setTransport(fakeTransport({ app_info: info }).transport);
+    const updates = new UpdateState();
+    updates.status = status({ enabled: false });
+    render(Connect, { onClose: vi.fn(), updates });
+    expect(await screen.findByTestId('update-line')).toHaveTextContent('Update checks are turned off');
+    expect(screen.queryByRole('button', { name: 'Check for updates' })).toBeNull();
+  });
+
+  it('Connect: up to date', async () => {
+    restore = setTransport(fakeTransport({ app_info: info }).transport);
+    const updates = new UpdateState();
+    updates.status = status();
+    render(Connect, { onClose: vi.fn(), updates });
+    expect(await screen.findByTestId('update-line')).toHaveTextContent('Up to date.');
   });
 });

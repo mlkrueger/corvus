@@ -40,6 +40,7 @@ value counts as unset. Variables in the process environment win over the env fil
 | `CORVUS_IDLE_SECONDS` | `900` | Seen within this long: `idle`; later: `offline`. Must be greater than `CORVUS_ACTIVE_SECONDS`. |
 | `CORVUS_AUTO_END_SECONDS` | `3600` | A session silent this long is ended. `0` disables auto-end. 0 to 31536000. |
 | `CORVUS_HOOK_THROTTLE_SECONDS` | `5` | Minimum gap between inbox checks by `corvus hook`. `0` disables the throttle. |
+| `CORVUS_UPDATE_CHECK` | `on` | `off` stops the desktop app from checking GitHub for a newer version. The `corvus` command never checks. |
 | `CORVUS_OPERATOR_NAME` | `operator` | Agent name used for `corvus tell`, `task create` and `task cancel` when no name is given. |
 | `CORVUS_AGENT_NAME` | unset | Fixed agent name: used by `corvus mcp` when `register_session` has no name, and by `corvus hook`. |
 | `CORVUS_EXPORT_REPO` | unset | Absolute path of the git repository that `admin export` / `export_state_to_git` writes into. |

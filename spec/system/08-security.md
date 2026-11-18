@@ -11,8 +11,10 @@ machine, and no web page in the user's browser, can read or change its state.
 | Loopback HTTP API (programmatic; no pages) | only while `corvus serve` runs, which requires `CORVUS_API_TOKEN` | bind, token on every route, host allow-list (below) |
 | Desktop app IPC | while the app runs | only the app's own bundled page can call it; one data command |
 | Outbound to Linear / Jira | only if configured | fixed hosts, TLS, no redirects |
+| Outbound to GitHub Releases (update check) | while the desktop app runs, unless `CORVUS_UPDATE_CHECK=off` | fixed HTTPS URL; an update is installed only on the owner's click and only if its signature matches the updater key ([D0027](../decisions/0027-app-updates-from-github-releases.md)) |
 
-**A default install has no network surface at all, and the desktop app never has one.**
+**A default install has no network surface at all, and the desktop app never has one.** (A surface is
+something that accepts connections; the update check is an outbound request.)
 
 ## Why the HTTP API needs a token even though it is local
 

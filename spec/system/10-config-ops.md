@@ -21,6 +21,7 @@ Parsed once at startup into a typed `Config` in `corvus-core`; invalid values fa
 | `CORVUS_EXPORT_REPO` | unset | absolute path to a git work tree |
 | `CORVUS_AGENT_NAME` | unset | default agent name for the MCP process; required by the hook |
 | `CORVUS_HOOK_THROTTLE_SECONDS` | 5 | after-tool throttle |
+| `CORVUS_UPDATE_CHECK` | `on` | `off` stops the desktop app from checking GitHub for a newer version ([05](05-dashboard.md#desktop-app-cratescorvus-desktop-tauri-2)); not used by the `corvus` binary |
 | `CORVUS_ENV_FILE` | `~/.config/corvus/env` | see below |
 | `CORVUS_LOG` | `info` | log level |
 | `CORVUS_JIRA_*` | | [07a](07a-jira.md#configuration) |

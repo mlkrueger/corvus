@@ -9,5 +9,6 @@ pub mod commands;
 pub mod info;
 pub mod ipc;
 pub mod nav;
+pub mod update;
 
 pub use app::run;

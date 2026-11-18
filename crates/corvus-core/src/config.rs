@@ -115,6 +115,8 @@ pub struct Config {
     pub export_repo: Option<PathBuf>,
     pub agent_name: Option<AgentName>,
     pub hook_throttle_seconds: u64,
+    /// Whether the desktop app may ask GitHub for a newer version (`CORVUS_UPDATE_CHECK`, default on).
+    pub update_check: bool,
     pub env_file: PathBuf,
     pub log: String,
     pub jira: Option<JiraConfig>,
@@ -196,6 +198,12 @@ impl Config {
             .map(|p| absolute("CORVUS_EXPORT_REPO", &p))
             .transpose()?;
 
+        let update_check = match get("CORVUS_UPDATE_CHECK").as_deref().map(str::trim) {
+            None | Some("on") => true,
+            Some("off") => false,
+            Some(_) => return Err(ConfigError::new("CORVUS_UPDATE_CHECK", "must be on or off")),
+        };
+
         let log = get("CORVUS_LOG").unwrap_or_else(|| "info".to_owned());
         if !log
             .chars()
@@ -220,6 +228,7 @@ impl Config {
             export_repo,
             agent_name,
             hook_throttle_seconds,
+            update_check,
             env_file,
             log,
             jira: jira(&get)?,
@@ -445,6 +454,7 @@ mod tests {
         assert_eq!(c.export_repo, None);
         assert_eq!(c.agent_name, None);
         assert_eq!(c.hook_throttle_seconds, 5);
+        assert!(c.update_check);
         assert_eq!(c.log, "info");
         assert!(c.jira.is_none());
         assert!(c.linear.is_none());
@@ -465,6 +475,7 @@ mod tests {
             ("CORVUS_EXPORT_REPO", "/repo"),
             ("CORVUS_AGENT_NAME", "agent-1"),
             ("CORVUS_HOOK_THROTTLE_SECONDS", "0"),
+            ("CORVUS_UPDATE_CHECK", "off"),
             ("CORVUS_ENV_FILE", "/e/env"),
             ("CORVUS_LOG", "debug"),
         ])
@@ -489,6 +500,7 @@ mod tests {
             Some("agent-1".into())
         );
         assert_eq!(c.hook_throttle_seconds, 0);
+        assert!(!c.update_check);
         assert_eq!(c.env_file, PathBuf::from("/e/env"));
         assert_eq!(c.log, "debug");
     }
@@ -529,6 +541,7 @@ mod tests {
             ("CORVUS_ACTIVE_SECONDS", "x"),
             ("CORVUS_AUTO_END_SECONDS", "-1"),
             ("CORVUS_HOOK_THROTTLE_SECONDS", "soon"),
+            ("CORVUS_UPDATE_CHECK", "maybe"),
             ("CORVUS_OPERATOR_NAME", "-bad"),
             ("CORVUS_OPERATOR_NAME", "has space"),
             ("CORVUS_AGENT_NAME", "a:b"),

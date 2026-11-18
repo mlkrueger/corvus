@@ -235,6 +235,7 @@ export const IPC_SHIM = `
         return { status: res.status, body };
       }
       if (cmd === 'app_info') return APP_INFO;
+      if (cmd === 'check_update') return { enabled: false, current: APP_INFO.version, available: null, error: null };
       throw new Error('unknown command: ' + cmd);
     },
     transformCallback: () => 0,

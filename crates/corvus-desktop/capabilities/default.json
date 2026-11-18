@@ -3,5 +3,12 @@
   "identifier": "default",
   "description": "The dashboard page may call only the app's own commands. No plugin permissions.",
   "windows": ["main"],
-  "permissions": ["allow-api", "allow-app-info", "allow-install-cli", "allow-set-background-paused"]
+  "permissions": [
+    "allow-api",
+    "allow-app-info",
+    "allow-install-cli",
+    "allow-set-background-paused",
+    "allow-check-update",
+    "allow-install-update"
+  ]
 }

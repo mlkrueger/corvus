@@ -17,6 +17,7 @@ use crate::background::Background;
 use crate::info::{self, AppInfo};
 use crate::ipc::{ApiResponse, dispatch};
 use crate::nav::{hand_to_browser, navigation_allowed};
+use crate::update::{self, Failed, UpdateStatus, Updates};
 
 const MAIN: &str = "main";
 const PAUSE_LABEL: &str = "Pause background work";
@@ -26,6 +27,7 @@ struct AppState {
     router: Router,
     corvus: Corvus,
     background: Background,
+    updates: Updates,
     pause_item: OnceLock<MenuItem<Wry>>,
 }
 
@@ -52,6 +54,38 @@ fn install_cli() -> Result<String, String> {
 #[tauri::command]
 fn set_background_paused(app: AppHandle, paused: bool) {
     apply_paused(&app, paused);
+}
+
+/// Whether a newer version exists. `force` skips the six-hour memory (the owner asked).
+#[tauri::command]
+async fn check_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    force: bool,
+) -> Result<UpdateStatus, String> {
+    Ok(update::check(&app, &state.updates, force).await)
+}
+
+/// Downloads, verifies and installs the newer version, then restarts the app. Returns only on failure.
+#[tauri::command]
+async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let was_paused = state.background.is_paused();
+    let stop = || async {
+        state.background.shutdown().await;
+        if let Err(e) = checkpoint(state.corvus.services()) {
+            tracing::warn!(error = %e, "checkpoint before the update failed");
+        }
+    };
+    match update::install(&app, &state.updates, stop).await {
+        Ok(()) => app.restart(),
+        Err(failed) => {
+            if matches!(failed, Failed::AfterStop(_)) && !was_paused {
+                state.background.set_paused(false);
+            }
+            tracing::warn!(error = failed.message(), "update not installed");
+            Err(failed.message().to_owned())
+        }
+    }
 }
 
 fn apply_paused(app: &AppHandle, paused: bool) {
@@ -132,6 +166,7 @@ pub fn run(context: tauri::Context<Wry>) {
             corvus.clone(),
         )),
         corvus,
+        updates: Updates::new(config.update_check),
         pause_item: OnceLock::new(),
     };
 
@@ -140,12 +175,16 @@ pub fn run(context: tauri::Context<Wry>) {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main(app)
         }))
+        // Rust-side only: no updater permission is granted to the page (capabilities/default.json).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             api,
             app_info,
             install_cli,
-            set_background_paused
+            set_background_paused,
+            check_update,
+            install_update
         ])
         .on_window_event(on_window_event)
         .setup(|app| {

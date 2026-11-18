@@ -35,6 +35,7 @@ This file is the index. It lists every record, current and superseded (a test fa
 | [D0024](spec/decisions/0024-wake-through-the-tools-own-channel.md) | Idle sessions are woken through each tool's own channel; Corvus does not own the terminal | Accepted |
 | [D0025](spec/decisions/0025-operator-reassigns-stranded-mail.md) | The operator can reassign an agent's unread mail; it is a transfer, not an acknowledgement | Accepted |
 | [D0026](spec/decisions/0026-official-builds-in-github-actions.md) | Official builds are made by GitHub Actions on a version tag, signed with the owner's self-signed certificate | Accepted |
+| [D0027](spec/decisions/0027-app-updates-from-github-releases.md) | The desktop app updates itself from GitHub Releases on a click; the app owns the `corvus` command | Accepted |
 
 ## Defaults and departures from the brief
 

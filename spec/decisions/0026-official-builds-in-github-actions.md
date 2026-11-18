@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-18
-- **Plans:** [0013](../plans/0013-ci-and-official-builds.md)
+- **Plans:** [0013](../plans/0013-ci-and-official-builds.md), [0014](../plans/0014-app-updates.md)
 - **Spec:** [system/11](../system/11-defaults.md) rows 34, 56–58 · [docs/release.md](../../docs/release.md)
 
 ## Problem

@@ -30,6 +30,7 @@ CORVUS_SIGN_IDENTITY="<keychain identity name>" make dist
 | `corvus-<v>-aarch64-apple-darwin.tar.gz`, `corvus-<v>-x86_64-apple-darwin.tar.gz` | native builds; both signed when `CORVUS_SIGN_IDENTITY` is set; the x86_64 one is run under Rosetta |
 | `corvus-<v>-aarch64-unknown-linux-musl.tar.gz`, `corvus-<v>-x86_64-unknown-linux-musl.tar.gz` | static musl; in the workflow built natively on a Linux runner of each architecture (`make native-linux-<arch>`), locally cross-compiled in a throwaway `podman` container |
 | `Corvus-<v>-macos-<arch>.app.zip` | `make bundle` (needs Node on the release machine only), zipped with `ditto` so the signature survives |
+| `Corvus-<v>-macos-<arch>.app.tar.gz`, its `.sig`, `latest.json` | the app again as the updater's archive, signed with the updater key after `codesign`, and the manifest installed apps read ([D0027](../spec/decisions/0027-app-updates-from-github-releases.md)); written only when the updater key is present |
 | `SHA256SUMS` | over every archive |
 
 The workflow builds the app for Apple silicon only.
@@ -75,8 +76,13 @@ git tag v<v> && git push origin v<v>
 ```
 
 The workflow waits for the owner's approval of the `release` environment, builds, and creates the release
-"Corvus <v>" with every archive and `SHA256SUMS`. A tag that does not match `Cargo.toml`, or a tagged build with
-no signing certificate configured, fails before anything is published.
+"Corvus <v>" with every archive, `latest.json` and `SHA256SUMS`. A tag that does not match `Cargo.toml`, or a
+tagged build with no signing certificate or no updater key configured, fails before anything is published.
+
+Installed apps find the new version through
+`https://github.com/mlkrueger/corvus/releases/latest/download/latest.json`, so a release is offered to users as
+soon as it is the latest one. Before tagging, set the same version in `Cargo.toml` and
+`crates/corvus-desktop/tauri.conf.json` (a test fails if they differ).
 
 ## 6. One-time setup of signing in GitHub
 
@@ -94,3 +100,20 @@ workflow's macOS and publish jobs can read; pull requests cannot.
    ```
 
 3. Delete the `.p12` file.
+
+## 7. The updater key
+
+Updates are verified against a key pair that is separate from the signing certificate. The public key is in
+`crates/corvus-desktop/tauri.conf.json`; the private key signs each release's update archive.
+
+- The private key was generated with `tauri signer generate` (no password) and lives at
+  `~/.config/corvus/updater.key` on the owner's Mac. **Keep a backup**: without it, installed apps can never be
+  updated in place again.
+- Give it to the release workflow once, from your own terminal:
+
+  ```sh
+  gh secret set UPDATER_PRIVATE_KEY --env release < ~/.config/corvus/updater.key
+  ```
+
+- To build the update archive locally for testing:
+  `TAURI_SIGNING_PRIVATE_KEY_PATH=~/.config/corvus/updater.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD= make dist-app`.
