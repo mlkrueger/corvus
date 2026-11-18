@@ -73,10 +73,10 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
       posts; a message already shown does not wake again; a second waiter exits 0; exits 0 when the parent
       process dies; every failure path (no database, schema mismatch, busy, bad stdin) exits 0 silently.
 - [ ] No wake loop: unread-but-shown mail across ten stop events produces zero wakes.
-- [ ] By hand, real Claude Code, user-level hooks: two sessions in one folder are two agents; `corvus tell` to
+- [x] By hand, real Claude Code, user-level hooks: two sessions in one folder are two agents; `corvus tell` to
       one wakes only that one; quit and `claude --resume` → same agent, unread mail delivered; `/clear` keeps
       the agent; a session that never connected is untouched.
-- [ ] By hand, OpenCode (and Codex if installed): tell → the idle session starts a turn and reads its inbox.
+- [x] By hand, OpenCode (and Codex if installed): tell → the idle session starts a turn and reads its inbox.
 - [ ] `corvus tell` to an agent with no live session prints the offline warning; the dashboard flags it.
 
 ## Exit criteria
@@ -101,9 +101,13 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
   does not serve them yet (it looks conversations up under `claude-code`), so a Codex agent sees mail only when
   woken or when it reads its inbox. Candidate for a later plan.
 - **Headless Codex wake**: with no window open, `codex queue --resume` runs the turn in Codex's own background
-  service, which reads `~/.codex/config.toml`. Confirmed only with a window open; the headless case needs the
-  owner's real config to contain the Corvus server.
+  service, which reads `~/.codex/config.toml`. Confirmed with and without a window (by-hand results below).
 - **`--fork-session`** is assumed to issue a new id (a new agent); untested.
+- **Acting on operator mail**: a woken Claude Code session with narrow instructions may decline to act on
+  mail from the operator. Should the hook's wake text or the bootstrap guidance say that operator mail is
+  the owner speaking?
+- **After `/clear` or a resume** the session must call `register_session` again before other tools work.
+  Should the MCP server recall the agent from the conversation link instead, or the SessionStart hook say so?
 
 ## Unverified / deferred
 
@@ -176,9 +180,25 @@ Codex 0.169.0 (step 1e, 2026-11-16), cheapest model, a logging wrapper around `c
   `42` and an ack 16 s after the tell. The reply was posted as a broadcast in the thread rather than with
   `in_reply_to` (the model's choice).
 - **Gates:** `make lint`, 575 Rust tests, 119 UI unit tests, the bundle scan and `make test-e2e` (46) pass.
-- **Not yet done:** the hooks in the owner's real `~/.claude/settings.json` (two sessions in one folder, resume,
-  `/clear`); the desktop app (rather than `corvus serve`) as the leader; the dashboard's new parts on screen;
-  Codex woken with no window open; `--fork-session`.
+- **Real settings (2026-11-16, evening):** after `corvus setup claude` on the owner's `~/.claude/settings.json`
+  and the Corvus server in `~/.codex/config.toml`, on `~/.corvus`, Claude Code sessions driven in a
+  pseudo-terminal:
+  - Two sessions in one folder registered as two agents (`rc-alice`, `rc-bob`), two conversation links.
+  - `corvus tell` woke only the addressed idle session, within 3-4 s.
+  - A session told only "register and answer READY" woke but **declined to act** on the operator's mail and
+    did not ack it (it treated the mail as a peer request outside its instructions). A session told that
+    operator mail comes from the owner replied `42` and acked in 3 s. Whether Corvus's own guidance should say
+    this is an open question below.
+  - `claude --continue` after quitting: same agent (`rc-carol`).
+  - `/clear`: the link was carried to the new id; `register_session` with no name returned the same agent
+    (`rc-dave`) and the next tell woke it (4 s). Before re-registering, tool calls fail with "`agent` is
+    required (register_session first)": the MCP server remembers its agent only in-process and nothing tells
+    the cleared session to register again.
+  - Codex with no window: `codex exec` registered `cx-real`; with `corvus serve` as leader the watcher started
+    within 10 s and a tell got `44` back in 18 s, run by Codex's background service.
+- **Not yet done:** the desktop app (rather than `corvus serve`) as the leader; the dashboard's new parts on
+  screen; `--fork-session`. The app the owner launched was using a different state directory
+  (`/private/tmp/corvus-manual`) from the CLI (`~/.corvus`), so it could not lead for these sessions.
 | Inherited environment | The service passed its own start-up environment to `corvus mcp` — including an unrelated `CLAUDE_CODE_SESSION_ID`. | Trust that variable only when `clientInfo` says the client is Claude Code. |
 
 ### Steps 3–6 on a real session (2026-11-16)
