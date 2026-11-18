@@ -130,3 +130,7 @@ binary never does.
 | [DECISIONS.md](DECISIONS.md) | every design decision and default, with links to the reasoning |
 | [docs/release.md](docs/release.md) | building and releasing |
 | [spec/](spec/README.md) | the full specification, plans and decision records |
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
