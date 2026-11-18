@@ -11,6 +11,14 @@ make lint && make test && make test-e2e        # all must pass
 
 ## 2. Build everything
 
+Official builds are made by GitHub Actions, never on a developer machine
+([D0026](../spec/decisions/0026-official-builds-in-github-actions.md)). Pushing a tag `v<version>` that matches
+the version in `Cargo.toml` runs [`release.yml`](../.github/workflows/release.yml), which builds every artifact
+below, signs the macOS ones and publishes the GitHub Release (section 5). Running the workflow by hand
+(Actions → Release → Run workflow) builds the same artifacts without publishing.
+
+To build the same set locally for testing (not a release):
+
 ```sh
 CORVUS_SIGN_IDENTITY="<keychain identity name>" make dist
 ```
@@ -20,9 +28,11 @@ CORVUS_SIGN_IDENTITY="<keychain identity name>" make dist
 | Artifact | How |
 |---|---|
 | `corvus-<v>-aarch64-apple-darwin.tar.gz`, `corvus-<v>-x86_64-apple-darwin.tar.gz` | native builds; both signed when `CORVUS_SIGN_IDENTITY` is set; the x86_64 one is run under Rosetta |
-| `corvus-<v>-aarch64-unknown-linux-musl.tar.gz`, `corvus-<v>-x86_64-unknown-linux-musl.tar.gz` | static musl, cross-compiled in a throwaway `podman` container of this machine's architecture |
+| `corvus-<v>-aarch64-unknown-linux-musl.tar.gz`, `corvus-<v>-x86_64-unknown-linux-musl.tar.gz` | static musl; in the workflow built natively on a Linux runner of each architecture (`make native-linux-<arch>`), locally cross-compiled in a throwaway `podman` container |
 | `Corvus-<v>-macos-<arch>.app.zip` | `make bundle` (needs Node on the release machine only), zipped with `ditto` so the signature survives |
 | `SHA256SUMS` | over every archive |
+
+The workflow builds the app for Apple silicon only.
 
 Each Linux archive is smoke-tested in a stock `debian:stable-slim` container holding only the binary
 (`make smoke-linux-arm64` / `smoke-linux-amd64`): static linkage, `health`, an 8-process claim race with exactly
@@ -58,9 +68,29 @@ moved fails its next write with code `upgraded`: "Corvus was upgraded — restar
 ## 5. Publish
 
 Releases live on GitHub Releases ([defaults](../spec/system/11-defaults.md) row 56); there is no crates.io
-publish. Tag the commit the artifacts were built from, then upload everything in `target/dist/`:
+publish. With the gates green on the commit to release:
 
 ```sh
 git tag v<v> && git push origin v<v>
-gh release create v<v> target/dist/*.tar.gz target/dist/*.zip target/dist/SHA256SUMS --title "Corvus <v>" --notes-file <notes>
 ```
+
+The workflow waits for the owner's approval of the `release` environment, builds, and creates the release
+"Corvus <v>" with every archive and `SHA256SUMS`. A tag that does not match `Cargo.toml`, or a tagged build with
+no signing certificate configured, fails before anything is published.
+
+## 6. One-time setup of signing in GitHub
+
+The signing certificate lives in the `release` environment (Settings → Environments), which only the release
+workflow's macOS and publish jobs can read; pull requests cannot.
+
+1. In Keychain Access, export the signing certificate **with its private key** as a `.p12` and choose an export
+   password.
+2. Store it, from the folder holding the file:
+
+   ```sh
+   base64 -i <file>.p12 | gh secret set MACOS_CERT_P12 --env release
+   gh secret set MACOS_CERT_PASSWORD --env release          # prompts for the export password
+   gh variable set CORVUS_SIGN_IDENTITY --env release --body "<certificate name>"
+   ```
+
+3. Delete the `.p12` file.

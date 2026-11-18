@@ -26,6 +26,7 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0023](0023-agent-identity-follows-conversation.md) | An agent's identity follows its tool conversation, so hooks need no per-project name | Accepted | [0012](../plans/0012-session-identity-and-wake.md) |
 | [D0024](0024-wake-through-the-tools-own-channel.md) | Idle sessions are woken through each tool's own channel; Corvus does not own the terminal | Accepted | [0012](../plans/0012-session-identity-and-wake.md) |
 | [D0025](0025-operator-reassigns-stranded-mail.md) | The operator can reassign an agent's unread mail; it is a transfer, not an acknowledgement | Accepted | [0012](../plans/0012-session-identity-and-wake.md) |
+| [D0026](0026-official-builds-in-github-actions.md) | Official builds are made by GitHub Actions on a version tag, signed with the owner's self-signed certificate | Accepted | [0013](../plans/0013-ci-and-official-builds.md) |
 
 ## Superseded (kept as history)
 
@@ -41,4 +42,4 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0018](0018-self-contained-desktop.md) | Self-contained Tauri app with an optional HTTP listener | [D0020](0020-desktop-only-dashboard.md) | Desktop-only dashboard; the app never listens |
 | [D0019](0019-dashboard-frontend-two-carriers.md) | Svelte bundle with IPC and HTTP carriers | [D0020](0020-desktop-only-dashboard.md) | No browser host; one carrier |
 
-Next free number: **0026**.
+Next free number: **0027**.

@@ -110,7 +110,8 @@ run:
 	$(CARGO) run -p corvus-cli -- health
 
 # ---------------------------------------------------------------------------------------------------------------
-# Release artifacts (release machine only; see docs/release.md). Linux builds and smoke tests use podman.
+# Release artifacts. Official builds run these targets in GitHub Actions (.github/workflows/release.yml, D0026);
+# `make dist` builds the same set on a Mac, with podman for the Linux builds and smoke tests.
 # Signing: set CORVUS_SIGN_IDENTITY to a keychain identity name; nothing secret lives in the repo.
 VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
@@ -170,6 +171,15 @@ dist-linux-%:
 	  cargo build --release --locked -p corvus-cli --target $(triple_$*)'
 	cp target/linux-$*/$(triple_$*)/release/corvus README.md $(DIST)/stage/$(triple_$*)/
 	COPYFILE_DISABLE=1 tar -C $(DIST)/stage/$(triple_$*) -czf $(DIST)/corvus-$(VERSION)-$(triple_$*).tar.gz corvus README.md
+
+# The same static musl binary built natively on a Linux machine of that architecture (the release workflow's
+# runners; needs musl-tools). No container, no cross-compiling.
+native-linux-%:
+	rustup target add $(triple_$*) > /dev/null
+	mkdir -p $(DIST)/stage/$(triple_$*)
+	CORVUS_GIT_COMMIT=$(COMMIT) $(CARGO) build --release --locked -p corvus-cli --target $(triple_$*)
+	cp target/$(triple_$*)/release/corvus README.md $(DIST)/stage/$(triple_$*)/
+	tar -C $(DIST)/stage/$(triple_$*) -czf $(DIST)/corvus-$(VERSION)-$(triple_$*).tar.gz corvus README.md
 
 # Clean-machine smoke test: only the binary in a stock image; health, cross-process claim race, MCP, hook.
 define SMOKE
