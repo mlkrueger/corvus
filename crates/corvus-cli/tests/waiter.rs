@@ -374,3 +374,34 @@ fn an_explicit_agent_name_works_without_a_link() {
     assert_eq!(code, 2);
     assert!(err.contains("per-project setup still works"));
 }
+
+#[test]
+fn a_database_held_by_a_long_writer_never_makes_it_fail() {
+    let home = Home::new();
+    link(&home, "carol", CONV_A);
+    ok(&home, &["tell", "carol", "held-message"]);
+    let (db, _) = Database::open(&home.db_path(), &ManualClock::default()).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let holder = std::thread::spawn(move || {
+        db.write(|t| {
+            t.sql_mut()
+                .execute("INSERT INTO agents (name, created_at) VALUES ('blocker', 1)", [])
+                .map_err(corvus_core::db::sql_err)?;
+            tx.send(()).unwrap();
+            std::thread::sleep(Duration::from_millis(2_000));
+            Ok(())
+        })
+        .unwrap();
+    });
+    rx.recv().unwrap();
+    // The waiter only reads (WAL): it wakes with the mail, or at worst leaves silently — never an error.
+    let w = start(&home, None, CONV_A, "4242", &[]);
+    let (code, out, err) = finish(w, Duration::from_secs(8)).expect("exits");
+    holder.join().unwrap();
+    assert_eq!(out, "");
+    match code {
+        2 => assert!(err.contains("held-message"), "{err}"),
+        0 => assert_eq!(err, ""),
+        other => panic!("exit {other}: {err}"),
+    }
+}
