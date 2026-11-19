@@ -409,7 +409,55 @@ describe('Connect', () => {
     render(Connect, { onClose: vi.fn() });
     await fireEvent.click(await screen.findByRole('button', { name: 'Install command-line tool' }));
     expect(await screen.findByText(/installed on PATH/)).toBeInTheDocument();
-    expect(t.calls.map((c) => c.cmd)).toEqual(['app_info', 'install_cli', 'app_info']);
+    expect(t.calls.map((c) => c.cmd).filter((c) => !c.includes('launch_at_login'))).toEqual([
+      'app_info',
+      'install_cli',
+      'app_info',
+    ]);
+  });
+
+  it('launch at login: shows the setting and changes it', async () => {
+    let on = true;
+    const t = fakeTransport({
+      app_info: info,
+      get_launch_at_login: () => on,
+      set_launch_at_login: (call: { args?: Record<string, unknown> }) => {
+        on = Boolean(call.args?.enabled);
+        return on;
+      },
+    });
+    restore = setTransport(t.transport);
+    render(Connect, { onClose: vi.fn() });
+    const box = await screen.findByRole('checkbox', { name: 'Start Corvus at login' });
+    await waitFor(() => expect(box).toBeChecked());
+    await fireEvent.click(box);
+    await waitFor(() => expect(box).not.toBeChecked());
+    expect(t.calls.find((c) => c.cmd === 'set_launch_at_login')?.args).toEqual({ enabled: false });
+    expect(on).toBe(false);
+  });
+
+  it('launch at login: a failure is shown and the real setting comes back', async () => {
+    const t = fakeTransport({
+      app_info: info,
+      get_launch_at_login: true,
+      set_launch_at_login: () => {
+        throw new Error('cannot write the login item');
+      },
+    });
+    restore = setTransport(t.transport);
+    render(Connect, { onClose: vi.fn() });
+    const box = await screen.findByRole('checkbox', { name: 'Start Corvus at login' });
+    await waitFor(() => expect(box).toBeChecked());
+    await fireEvent.click(box);
+    expect(await screen.findByRole('alert')).toHaveTextContent('cannot write the login item');
+    await waitFor(() => expect(box).toBeChecked());
+  });
+
+  it('launch at login: no checkbox outside the app', async () => {
+    restore = setTransport(fakeTransport({ app_info: info }).transport);
+    render(Connect, { onClose: vi.fn() });
+    expect(await screen.findByText('/Applications/Corvus.app/corvus')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Start Corvus at login' })).toBeNull();
   });
 
   it('falls back gracefully when app_info fails', async () => {

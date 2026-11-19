@@ -28,6 +28,7 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0025](0025-operator-reassigns-stranded-mail.md) | The operator can reassign an agent's unread mail; it is a transfer, not an acknowledgement | Accepted | [0012](../plans/0012-session-identity-and-wake.md) |
 | [D0026](0026-official-builds-in-github-actions.md) | Official builds are made by GitHub Actions on a version tag, signed with the owner's self-signed certificate | Accepted | [0013](../plans/0013-ci-and-official-builds.md), [0014](../plans/0014-app-updates.md) |
 | [D0027](0027-app-updates-from-github-releases.md) | The desktop app updates itself from GitHub Releases on a click; the app owns the `corvus` command | Accepted | [0014](../plans/0014-app-updates.md) |
+| [D0028](0028-operator-mail-is-the-owner.md) | Mail from the operator is the owner speaking; `corvus mcp` refuses to act as the operator | Accepted | [0015](../plans/0015-operator-voice-recall-login.md) |
 
 ## Superseded (kept as history)
 
@@ -43,4 +44,4 @@ Accepted records are immutable apart from status, links and the Discussion log; 
 | [D0018](0018-self-contained-desktop.md) | Self-contained Tauri app with an optional HTTP listener | [D0020](0020-desktop-only-dashboard.md) | Desktop-only dashboard; the app never listens |
 | [D0019](0019-dashboard-frontend-two-carriers.md) | Svelte bundle with IPC and HTTP carriers | [D0020](0020-desktop-only-dashboard.md) | No browser host; one carrier |
 
-Next free number: **0028**.
+Next free number: **0029**.

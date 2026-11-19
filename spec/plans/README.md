@@ -26,7 +26,8 @@ A plan says what gets built, in what order, and how it is verified. Lasting desi
 | [0012](0012-session-identity-and-wake.md) | Session identity by conversation; waking idle sessions | In progress | 0007 |
 | [0013](0013-ci-and-official-builds.md) | CI and official builds in GitHub Actions | In progress | 0011 |
 | [0014](0014-app-updates.md) | App updates from GitHub Releases | In progress | 0013 |
+| [0015](0015-operator-voice-recall-login.md) | Operator mail speaks for the owner; recall after `/clear`; launch at login | Done | 0012, 0014 |
 
-Next free number: **0015**. Numbers are identifiers, not order — 0011 is built before 0010; see the roadmap.
+Next free number: **0016**. Numbers are identifiers, not order — 0011 is built before 0010; see the roadmap.
 
 Status values: `Draft` (being written) · `Ready` (agreed, not started) · `In progress` · `Done` · `Abandoned`.

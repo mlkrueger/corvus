@@ -36,6 +36,7 @@ This file is the index. It lists every record, current and superseded (a test fa
 | [D0025](spec/decisions/0025-operator-reassigns-stranded-mail.md) | The operator can reassign an agent's unread mail; it is a transfer, not an acknowledgement | Accepted |
 | [D0026](spec/decisions/0026-official-builds-in-github-actions.md) | Official builds are made by GitHub Actions on a version tag, signed with the owner's self-signed certificate | Accepted |
 | [D0027](spec/decisions/0027-app-updates-from-github-releases.md) | The desktop app updates itself from GitHub Releases on a click; the app owns the `corvus` command | Accepted |
+| [D0028](spec/decisions/0028-operator-mail-is-the-owner.md) | Mail from the operator is the owner speaking; `corvus mcp` refuses to act as the operator | Accepted |
 
 ## Defaults and departures from the brief
 

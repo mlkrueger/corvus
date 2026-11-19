@@ -36,8 +36,10 @@ Rules:
   `{injected_ids: [...], last_check: <ts>, stop_blocked: bool}`. A message id is injected at most once per
   (agent, Claude session). Written with temp-file + rename. The injected set is pruned to ids still unread.
 - **Format**: the guidance text, then up to 10 messages (oldest first): id, thread, sender, type, body truncated
-  to ~1000 chars with a marker. The sender equal to `CORVUS_OPERATOR_NAME` is shown as "the operator". If more
-  than 10 are new, say how many remain. Bodies are framed as quoted peer text, not instructions.
+  to ~1000 chars with a marker. The sender equal to `CORVUS_OPERATOR_NAME` is shown as "the operator (your
+  user)", and the header says operator mail is the user speaking while mail from other agents is a peer request
+  ([D0028](../decisions/0028-operator-mail-is-the-owner.md)). If more than 10 are new, say how many remain.
+  Bodies are quoted text, never merged into the instructions.
 - **Never fails**: every error path (no database, schema mismatch, busy, bad JSON, unwritable state, panic via
   `catch_unwind`) exits 0 with empty output. The hook never acks. A corrupt state file is reset (silent that
   once); if the state cannot be saved the hook prints nothing, so it never re-injects the same mail every call.

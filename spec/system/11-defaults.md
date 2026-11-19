@@ -74,6 +74,8 @@ become the root `DECISIONS.md` the brief asks for ([plan 0010](../plans/0010-doc
 | 64 | Who wakes OpenCode / Codex agents | The background leader (the desktop app or `corvus serve`); `corvus up` for headless machines | "Once the app is running I should not need to do anything else" (owner, 2026-11-16) |
 | 65 | Sending to an unreachable agent | Delivered, with a warning; the dashboard flags it and the operator can reassign the mail | Mail is never refused and a mailbox never just looks dead ([D0025](../decisions/0025-operator-reassigns-stranded-mail.md)) |
 | 66 | Setting up the Claude Code hooks | `corvus setup claude` (shows the change, asks, backs up, removable) and the same snippet in the docs | A command for convenience; a paste-it-yourself path for those who would rather not let a tool edit their settings (owner, 2026-11-16) |
+| 67 | A Corvus tool call after `/clear` or a resume, before `register_session` | `corvus mcp` registers a session for the conversation's linked agent and runs the call | Claude Code gives the server no signal for a clear; the link already says who the conversation is (owner, 2026-11-19) |
+| 68 | Launch at login (desktop app) | On, set once at the first launch; a login launch opens into the menu bar only; a checkbox in the Connect view turns it off for good | The background leader must be running after a reboot without the owner doing anything (owner, 2026-11-19) |
 
 ## Deliberate departures from the brief's wording
 

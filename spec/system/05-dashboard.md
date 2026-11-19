@@ -150,14 +150,20 @@ horizontally when narrow.
   public key in the app's configuration, stops background work, checkpoints the database, replaces the app and
   restarts it. The Connect view has "Check for updates", which ignores the six-hour cache and shows a failure.
   The `corvus` link made by "Install command-line tool" points into the bundle, so it is the new version too.
+- **Launch at login** ([defaults](11-defaults.md) row 68). The app registers itself as a login item (a macOS
+  launch agent, through `tauri-plugin-autostart`) at its first launch, and writes
+  `$CORVUS_STATE_DIR/desktop/autostart-set` so a later choice is never overridden. A login launch passes
+  `--autostart` and opens into the menu bar with no window. The Connect view has a "Start Corvus at login"
+  checkbox; the plugin runs in Rust behind `get_launch_at_login` and `set_launch_at_login`.
 - **Single instance.** A second launch focuses the existing window. `corvus ui` does the same from a terminal
   ([04](04-interfaces.md#cli-corvus)). The rendezvous is a Unix-domain socket in `/tmp` on macOS and a D-Bus
   session name on Linux; the callback ignores the caller's arguments and only shows the window
   ([D0022](../decisions/0022-desktop-single-instance-local-socket.md)).
 - **Isolation**:
   - IPC capabilities are limited to `api` plus a few app commands (`app_info`, `install_cli`,
-    `set_background_paused`, `check_update`, `install_update`). No shell, filesystem, HTTP-client, opener or
-    updater plugin permission is granted to the page; the updater runs in Rust behind the last two commands.
+    `set_background_paused`, `check_update`, `install_update`, `get_launch_at_login`, `set_launch_at_login`).
+    No shell, filesystem, HTTP-client, opener, updater or autostart plugin permission is granted to the page;
+    those plugins run in Rust behind the app's commands.
   - The webview loads only the bundled assets. A navigation guard cancels every other navigation and every
     new-window request; `https:` targets are handed to the system browser from Rust.
   - Tracker credentials are read from the environment / env file and never reach the webview.

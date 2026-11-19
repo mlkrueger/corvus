@@ -8,4 +8,6 @@ pub const APP_COMMANDS: &[&str] = &[
     "set_background_paused",
     "check_update",
     "install_update",
+    "get_launch_at_login",
+    "set_launch_at_login",
 ];

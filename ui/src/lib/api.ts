@@ -127,3 +127,21 @@ export function errorText(e: unknown): string {
   if (e instanceof ApiError) return e.status === 0 ? `app error: ${e.message}` : `${e.code}: ${e.message}`;
   return e instanceof Error ? e.message : String(e);
 }
+
+/** App command `get_launch_at_login`: whether the app starts at login. */
+export async function getLaunchAtLogin(): Promise<boolean> {
+  try {
+    return (await transport('get_launch_at_login')) as boolean;
+  } catch (e) {
+    throw new ApiError(0, 'ipc_error', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** App command `set_launch_at_login`; resolves to the setting as it now is. */
+export async function setLaunchAtLogin(enabled: boolean): Promise<boolean> {
+  try {
+    return (await transport('set_launch_at_login', { enabled })) as boolean;
+  } catch (e) {
+    throw new ApiError(0, 'ipc_error', e instanceof Error ? e.message : String(e));
+  }
+}

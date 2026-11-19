@@ -110,6 +110,14 @@ Handlers are async; each calls the synchronous service through the `Corvus` faca
   Ids are validated against the table's grammar; an invalid one is dropped (no link), never an error.
 - Because one process can serve several conversations, the remembered session is kept **per conversation id**
   (calls with no id share one slot, as before). A call is filled only from its own conversation's slot.
+- **Recall.** A call (other than `register_session`) whose conversation has no remembered session but is linked
+  to an agent first registers a session for that agent — the ordinary `connect`, with the conversation — and
+  remembers it. A session after `/clear` or a resume can therefore use the tools without registering again;
+  the server does not need to know that a clear happened, because the old id and the carried id both resolve
+  to the agent ([defaults](11-defaults.md) row 67). An unlinked conversation still needs `register_session`.
+- **Operator guard** ([D0028](../decisions/0028-operator-mail-is-the-owner.md)): any call whose agent field —
+  given or filled in — is the operator name is a validation error, `register_session` included. Agents cannot
+  send as, or register as, the operator through this server.
 - On stdin EOF the process ends every remembered session (best effort) and exits.
 - **Launcher**: the brief's launcher script is unnecessary — the binary loads the env file itself
   ([10](10-config-ops.md#env-file)), so no secret appears in any client configuration.

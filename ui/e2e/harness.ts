@@ -217,6 +217,7 @@ export const IPC_SHIM = `
     }
     return { status: 500, body: { error: { code: 'internal', message: 'no canned response for ' + method + ' ' + path } } };
   };
+  let launchAtLogin = true;
   window.__TAURI_INTERNALS__ = {
     invoke: async (cmd, args) => {
       if (cmd === 'api' && window.__sourcesMock && args.path.startsWith('/api/sources')) {
@@ -236,6 +237,8 @@ export const IPC_SHIM = `
       }
       if (cmd === 'app_info') return APP_INFO;
       if (cmd === 'check_update') return { enabled: false, current: APP_INFO.version, available: null, error: null };
+      if (cmd === 'get_launch_at_login') return launchAtLogin;
+      if (cmd === 'set_launch_at_login') { launchAtLogin = Boolean(args.enabled); return launchAtLogin; }
       throw new Error('unknown command: ' + cmd);
     },
     transformCallback: () => 0,

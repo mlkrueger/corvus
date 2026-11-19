@@ -96,6 +96,8 @@ struct CorvusMcp {
     /// One process can serve several conversations (OpenCode runs one server for all its sessions), so the
     /// remembered session is kept per conversation.
     remembered: Arc<Mutex<HashMap<Slot, Remembered>>>,
+    /// Held while recalling an agent from a conversation link, so parallel calls register one session.
+    recalling: Arc<tokio::sync::Mutex<()>>,
     tools: Arc<Vec<ToolDef>>,
 }
 
@@ -343,6 +345,7 @@ impl CorvusMcp {
             corvus,
             options,
             remembered: Arc::new(Mutex::new(HashMap::new())),
+            recalling: Arc::new(tokio::sync::Mutex::new(())),
             tools: Arc::new(tool_defs()),
         }
     }
@@ -353,6 +356,79 @@ impl CorvusMcp {
             .unwrap_or_else(PoisonError::into_inner)
             .get(slot)
             .cloned()
+    }
+
+    /// D0028: agents never send, read or register as the operator through this server.
+    fn refuse_operator(&self, field: &str, value: Option<&Value>) -> Result<(), CorvusError> {
+        let operator = self.corvus.services().operator_name().as_str();
+        match value.and_then(Value::as_str) {
+            Some(v) if v.trim() == operator => Err(CorvusError::Validation(format!(
+                "`{field}`: `{operator}` is the operator; an agent cannot act as the operator"
+            ))),
+            _ => Ok(()),
+        }
+    }
+
+    /// Registers a session — with this call's conversation, which only the server knows — and remembers it.
+    async fn connect_and_remember(
+        &self,
+        mut req: RegisterSession,
+        slot: Slot,
+    ) -> Result<corvus_core::api::ConnectResult, CorvusError> {
+        req.conversation = slot.as_ref().map(|c| ConversationInput {
+            tool: c.tool().to_string(),
+            id: c.id().to_owned(),
+            // Claude Code and Codex run one server per session, in the session's directory;
+            // OpenCode runs one for all its sessions.
+            directory: (c.tool() != AgentTool::OpenCode)
+                .then(|| self.options.directory.clone())
+                .flatten(),
+        });
+        let out = self.corvus.run(move |s| s.muninn().connect(&req)).await?;
+        self.remembered
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(
+                slot,
+                Remembered {
+                    session_id: out.session.id.clone(),
+                    agent: out.session.agent_name.clone(),
+                },
+            );
+        Ok(out)
+    }
+
+    /// A call from a linked conversation with nothing remembered (after `/clear`, a resume, or a server
+    /// restart) registers a session for the linked agent first. The old id and a carried id both resolve, so
+    /// the server never needs to know that a clear happened. Unlinked conversations are left alone.
+    async fn recall(&self, slot: &Slot) -> Result<(), CorvusError> {
+        let Some(conversation) = slot.clone() else {
+            return Ok(());
+        };
+        if self.memory(slot).is_some() {
+            return Ok(());
+        }
+        let _one_at_a_time = self.recalling.lock().await;
+        if self.memory(slot).is_some() {
+            return Ok(());
+        }
+        let tool = conversation.tool().to_string();
+        let Some(agent) = self
+            .corvus
+            .run(move |s| s.sessions().agent_for_conversation(&conversation))
+            .await?
+        else {
+            return Ok(());
+        };
+        let req = RegisterSession {
+            agent_name: Some(agent.to_string()),
+            client_name: tool,
+            metadata: None,
+            idempotency_key: None,
+            conversation: None,
+        };
+        self.connect_and_remember(req, slot.clone()).await?;
+        Ok(())
     }
 
     async fn end_remembered_sessions(&self) {
@@ -453,7 +529,13 @@ impl CorvusMcp {
             .iter()
             .find(|d| d.name == name)
             .ok_or_else(|| CorvusError::NotFound(format!("unknown tool `{name}`")))?;
+        if name != "register_session" {
+            self.recall(&slot).await?;
+        }
         let (mut map, id) = self.prepare(def, args, &slot)?;
+        for f in def.agent_fields {
+            self.refuse_operator(f, map.get(*f))?;
+        }
         let task = || id.as_ref().and_then(Value::as_str).unwrap_or_default().to_owned();
         match name {
             "register_session" => {
@@ -465,27 +547,9 @@ impl CorvusMcp {
                 }
                 // The server says which conversation this is; a model cannot.
                 map.remove("conversation");
-                let mut req: RegisterSession = parse(map)?;
-                req.conversation = slot.as_ref().map(|c| ConversationInput {
-                    tool: c.tool().to_string(),
-                    id: c.id().to_owned(),
-                    // Claude Code and Codex run one server per session, in the session's directory;
-                    // OpenCode runs one for all its sessions.
-                    directory: (c.tool() != AgentTool::OpenCode)
-                        .then(|| self.options.directory.clone())
-                        .flatten(),
-                });
-                let out = self.corvus.run(move |s| s.muninn().connect(&req)).await?;
-                self.remembered
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(
-                        slot,
-                        Remembered {
-                            session_id: out.session.id.clone(),
-                            agent: out.session.agent_name.clone(),
-                        },
-                    );
+                self.refuse_operator("agent_name", map.get("agent_name"))?;
+                let req: RegisterSession = parse(map)?;
+                let out = self.connect_and_remember(req, slot).await?;
                 serde_json::to_value(out).map_err(|e| CorvusError::Internal(format!("serialise result: {e}")))
             }
             "get_bootstrap_context" => {

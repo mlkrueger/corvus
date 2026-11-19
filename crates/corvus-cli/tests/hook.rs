@@ -88,7 +88,7 @@ fn injects_each_message_once_per_session_and_writes_nothing() {
     assert!(text.contains("please review PR 12"));
     assert!(text.contains(&format!("message {}", m["id"])));
     assert!(
-        text.contains("from the operator"),
+        text.contains("from the operator (your user)"),
         "operator shown as the operator: {text}"
     );
     assert!(text.contains("Mail first"), "guidance present");

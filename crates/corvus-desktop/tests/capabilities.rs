@@ -6,13 +6,15 @@ use std::path::Path;
 use corvus_desktop::commands::APP_COMMANDS;
 use serde_json::Value;
 
-const EXPECTED: [&str; 6] = [
+const EXPECTED: [&str; 8] = [
     "api",
     "app_info",
     "install_cli",
     "set_background_paused",
     "check_update",
     "install_update",
+    "get_launch_at_login",
+    "set_launch_at_login",
 ];
 
 fn read(rel: &str) -> String {
@@ -20,7 +22,7 @@ fn read(rel: &str) -> String {
 }
 
 #[test]
-fn the_build_time_allow_list_is_exactly_the_six_commands() {
+fn the_build_time_allow_list_is_exactly_the_app_commands() {
     let got: BTreeSet<&str> = APP_COMMANDS.iter().copied().collect();
     assert_eq!(got, BTreeSet::from(EXPECTED));
     assert_eq!(APP_COMMANDS.len(), EXPECTED.len(), "no duplicates");
@@ -63,7 +65,7 @@ fn every_capability_grants_only_those_commands_and_no_plugin_permission() {
 }
 
 #[test]
-fn only_the_single_instance_and_updater_plugins_are_used() {
+fn only_the_single_instance_updater_and_autostart_plugins_are_used() {
     let manifest = read("Cargo.toml");
     for banned in [
         "tauri-plugin-shell",
@@ -77,10 +79,12 @@ fn only_the_single_instance_and_updater_plugins_are_used() {
     // The updater runs in Rust behind `check_update` / `install_update`; the page gets no permission for it
     // (checked above: every capability grants app commands only).
     assert!(manifest.contains("tauri-plugin-updater"));
+    // The same for launch at login: Rust only, behind `get_launch_at_login` / `set_launch_at_login`.
+    assert!(manifest.contains("tauri-plugin-autostart"));
     assert_eq!(
         manifest.matches("tauri-plugin-").count(),
-        2,
-        "only these two plugins"
+        3,
+        "only these three plugins"
     );
     // The generated ACL manifest (written by the build) lists the app commands only.
     let acl: Value = serde_json::from_str(&read("gen/schemas/acl-manifests.json")).unwrap();

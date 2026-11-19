@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { appInfo, errorText, installCli, type AppInfo } from '../lib/api';
+  import { appInfo, errorText, getLaunchAtLogin, installCli, setLaunchAtLogin, type AppInfo } from '../lib/api';
   import type { UpdateState } from '../lib/update.svelte';
 
   interface Props {
@@ -13,6 +13,10 @@
   let loadError = $state<string | null>(null);
   let installError = $state<string | null>(null);
   let installing = $state(false);
+  /** `null` until known, and outside the desktop app (no checkbox then). */
+  let atLogin = $state<boolean | null>(null);
+  let atLoginError = $state<string | null>(null);
+  let atLoginBusy = $state(false);
 
   async function load(): Promise<void> {
     try {
@@ -37,8 +41,30 @@
     }
   }
 
+  async function loadAtLogin(): Promise<void> {
+    try {
+      atLogin = await getLaunchAtLogin();
+    } catch {
+      atLogin = null;
+    }
+  }
+
+  async function toggleAtLogin(enabled: boolean): Promise<void> {
+    atLoginBusy = true;
+    atLoginError = null;
+    try {
+      atLogin = await setLaunchAtLogin(enabled);
+    } catch (e) {
+      atLoginError = errorText(e);
+      await loadAtLogin();
+    } finally {
+      atLoginBusy = false;
+    }
+  }
+
   $effect(() => {
     void load();
+    void loadAtLogin();
   });
 </script>
 
@@ -65,6 +91,26 @@
         {/if}
       </p>
       {#if updates.error}<p class="error" role="alert">{updates.error}</p>{/if}
+    {/if}
+    {#if atLogin !== null}
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            checked={atLogin}
+            disabled={atLoginBusy}
+            onchange={(e) => {
+              const wanted = e.currentTarget.checked;
+              // Show only the confirmed setting: the box changes when the app says it did.
+              e.currentTarget.checked = atLogin ?? false;
+              void toggleAtLogin(wanted);
+            }}
+          />
+          Start Corvus at login
+        </label>
+        <span class="muted">— keeps waking agents and polling trackers after a restart.</span>
+      </p>
+      {#if atLoginError}<p class="error" role="alert">{atLoginError}</p>{/if}
     {/if}
     <p>
       Binary: <code>{info.corvus_path ?? 'not found'}</code>

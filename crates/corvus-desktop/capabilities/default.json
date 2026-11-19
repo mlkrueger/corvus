@@ -9,6 +9,8 @@
     "allow-install-cli",
     "allow-set-background-paused",
     "allow-check-update",
-    "allow-install-update"
+    "allow-install-update",
+    "allow-get-launch-at-login",
+    "allow-set-launch-at-login"
   ]
 }

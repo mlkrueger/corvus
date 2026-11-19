@@ -24,7 +24,7 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 
 ## Work breakdown
 
-- [ ] 1. **Spikes (gate — results recorded below before step 2).**
+- [x] 1. **Spikes (gate — results recorded below before step 2).**
   - [x] a. Claude Code waiter edge cases: wake while the user is typing; wake while a turn is running; the
         longest a background hook may run and what happens at its timeout; whether a `SessionStart` entry arms
         before the first turn; a headless `claude -p` run must still exit promptly with the waiter registered.
@@ -34,7 +34,7 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
         real session in the by-hand checks once step 6 is built.
   - [x] d. OpenCode 2.3 live: the session id reaches `corvus mcp` (`_meta["ai.opencode/sessionID"]`);
         `opencode run --session <id> "<note>"` starts a turn in an idle open session and the open window shows it.
-  - [ ] e. *(pinned by the owner 2026-11-16 — Codex 0.169.0 is installed but not signed in; come back to it)*
+  - [x] e. *(pinned by the owner 2026-11-16 — Codex 0.169.0 is installed but not signed in; come back to it)*
         Codex: `codex queue --thread <id> --message "<note>"` on an idle
         open session; where the id reaches `corvus mcp`.
 - [x] 2. **Spec first.** system/02 (table), /03 (service), /04 (`register_session`, MCP), /06 (hook identity,
@@ -91,7 +91,6 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
   the waiter time limit (61), and by the owner on 2026-11-16: direct mail and operator-marked broadcasts wake
   (62), the background leader wakes OpenCode agents (64), unreachable agents get a warning, a flag and
   reassignment (65, D0025), setup by command and by snippet (66).
-- **Launch at login** for the desktop app, so the leader is running after a reboot — offered, not asked for.
 - **Resolved in step 4:** Claude Code 2.1.325 sends no `initialize` request to a stdio server on protocol
   `2026-07-28`; it names itself (`claude-code`) in every request's `_meta["io.modelcontextprotocol/clientInfo"]`.
   OpenCode names itself at `initialize`. The server reads both.
@@ -103,11 +102,10 @@ doing (the next plan, 0013 — owner agreed the order 2026-11-16); taking over a
 - **Headless Codex wake**: with no window open, `codex queue --resume` runs the turn in Codex's own background
   service, which reads `~/.codex/config.toml`. Confirmed with and without a window (by-hand results below).
 - **`--fork-session`** is assumed to issue a new id (a new agent); untested.
-- **Acting on operator mail**: a woken Claude Code session with narrow instructions may decline to act on
-  mail from the operator. Should the hook's wake text or the bootstrap guidance say that operator mail is
-  the owner speaking?
-- **After `/clear` or a resume** the session must call `register_session` again before other tools work.
-  Should the MCP server recall the agent from the conversation link instead, or the SessionStart hook say so?
+- **Resolved by the owner 2026-11-19, built in [plan 0015](0015-operator-voice-recall-login.md):** operator
+  mail is the owner speaking and Corvus says so ([D0028](../decisions/0028-operator-mail-is-the-owner.md));
+  after `/clear` or a resume `corvus mcp` recalls the agent from the conversation link (defaults row 67); the
+  desktop app launches at login (row 68). Codex was signed in and step 1e run on 2026-11-16 (results below).
 
 ## Unverified / deferred
 

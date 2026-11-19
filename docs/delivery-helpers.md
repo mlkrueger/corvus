@@ -17,7 +17,13 @@ Neither ever fails: on any problem they print nothing and exit 0. Neither marks 
 
 Both work out which agent a session is from the conversation: the agent that session registered as through the
 Corvus MCP server. A session that never registered is left alone, so one user-level setup is safe for every
-session on the machine. Resuming a conversation keeps its agent; so does `/clear`.
+session on the machine. Resuming a conversation keeps its agent; so does `/clear`. After either, the Corvus
+tools work straight away: the MCP server finds the agent from the conversation and registers a session for it,
+so the model does not need to call `register_session` again.
+
+Mail from the operator (`corvus tell`, the dashboard) is presented as coming from the user, and agents are told
+to act on it; mail from other agents is presented as a peer's request. An agent cannot send as the operator
+through its Corvus tools.
 
 ### Set it up
 

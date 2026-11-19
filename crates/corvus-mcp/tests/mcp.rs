@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use corvus_core::Corvus;
 use corvus_core::hermod::Hermod;
-use corvus_core::testing::{TestDb, count, exec};
+use corvus_core::testing::{TestDb, count, exec, query_i64};
 use corvus_domain::{AgentName, CorvusError, GUIDANCE};
 use corvus_mcp::McpOptions;
 use serde_json::{Value, json};
@@ -730,4 +730,176 @@ async fn a_codex_thread_is_linked_and_a_resume_attaches_to_the_same_agent() {
         )
         .await;
     assert_ne!(x["session"]["agent_name"], agent.as_str());
+}
+
+/// Sessions of `agent` that have not ended.
+fn open_sessions(t: &TestDb, agent: &str) -> i64 {
+    query_i64(
+        &t.db,
+        &format!("SELECT count(*) FROM sessions WHERE agent_name = '{agent}' AND ended_at IS NULL"),
+    )
+    .unwrap()
+}
+
+/// Registers on Claude Code conversation `CLAUDE_ID` in one server process, then ends it; returns the agent.
+async fn linked_claude_agent(t: &TestDb) -> String {
+    let (mut a, _) = Client::start_as(t, claude_options(), "t").await;
+    let (err, out) = a
+        .tool_meta(
+            "register_session",
+            json!({"client_name": "claude-code"}),
+            claude_meta(),
+        )
+        .await;
+    assert!(!err, "{out}");
+    a.close().await.unwrap();
+    out["session"]["agent_name"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_linked_conversation_is_recalled_without_registering_again() {
+    let t = TestDb::new();
+    let agent = linked_claude_agent(&t).await;
+    assert_eq!(open_sessions(&t, &agent), 0, "EOF ended the first session");
+
+    // A new server on the same conversation; the model calls a tool without registering.
+    let (mut b, _) = Client::start_as(&t, claude_options(), "t").await;
+    let (err, inbox) = b.tool_meta("read_inbox", json!({}), claude_meta()).await;
+    assert!(!err, "{inbox}");
+    assert_eq!(
+        open_sessions(&t, &agent),
+        1,
+        "one session registered for the linked agent"
+    );
+    // The recalled session fills later calls too.
+    let (err, hb) = b.tool_meta("heartbeat", json!({}), claude_meta()).await;
+    assert!(!err, "{hb}");
+    assert_eq!(count(&t.db, "conversations"), 1, "no new link");
+    b.close().await.unwrap();
+    assert_eq!(open_sessions(&t, &agent), 0, "the recalled session ends at EOF");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_carried_conversation_is_recalled_as_the_same_agent() {
+    const CLEARED_ID: &str = "5f0c1d2e-3a4b-4c5d-8e9f-0a1b2c3d4e5f";
+    let t = TestDb::new();
+    let agent = linked_claude_agent(&t).await;
+    // `/clear`: the hook carries the link to the new id.
+    let conv = |id: &str| corvus_domain::ConversationRef::new(corvus_domain::Tool::ClaudeCode, id).unwrap();
+    t.services()
+        .sessions()
+        .carry_conversation(&conv(CLAUDE_ID), &conv(CLEARED_ID))
+        .unwrap();
+
+    let options = McpOptions {
+        claude_session_id: Some(CLEARED_ID.into()),
+        ..claude_options()
+    };
+    let (mut c, _) = Client::start_as(&t, options, "t").await;
+    let (err, me) = c
+        .tool_meta("get_bootstrap_context", json!({}), claude_meta())
+        .await;
+    assert!(!err, "{me}");
+    assert_eq!(open_sessions(&t, &agent), 1);
+    c.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn parallel_calls_recall_one_session() {
+    let t = TestDb::new();
+    let agent = linked_claude_agent(&t).await;
+    let (mut b, _) = Client::start_as(&t, claude_options(), "t").await;
+    let mut ids = Vec::new();
+    for _ in 0..4 {
+        ids.push(
+            b.send(
+                "tools/call",
+                json!({"name": "read_inbox", "arguments": {}, "_meta": claude_meta()}),
+            )
+            .await,
+        );
+    }
+    // Replies may come in any order: read until every call has answered.
+    let mut pending: std::collections::HashSet<u64> = ids.into_iter().collect();
+    while !pending.is_empty() {
+        let line = tokio::time::timeout(Duration::from_secs(30), b.r.next_line())
+            .await
+            .expect("timed out")
+            .unwrap()
+            .expect("server closed the pipe");
+        let v: Value = serde_json::from_str(&line).unwrap();
+        if let Some(id) = v["id"].as_u64() {
+            assert_ne!(v["result"]["isError"], json!(true), "{v}");
+            pending.remove(&id);
+        }
+    }
+    assert_eq!(open_sessions(&t, &agent), 1);
+    b.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unlinked_conversation_still_needs_register_session() {
+    let t = TestDb::new();
+    let (mut c, _) = Client::start_as(&t, claude_options(), "t").await;
+    let (err, v) = c
+        .tool_meta("get_bootstrap_context", json!({}), claude_meta())
+        .await;
+    assert!(err && v["error"]["code"] == "validation", "{v}");
+    assert!(v.to_string().contains("register_session first"), "{v}");
+    assert_eq!(count(&t.db, "sessions"), 0);
+    c.close().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agent_cannot_act_as_the_operator() {
+    let t = TestDb::new();
+    let (mut c, _) = Client::start(&t, None).await;
+    let refused = |v: &Value| v["error"]["code"] == "validation" && v.to_string().contains("operator");
+
+    let (err, v) = c
+        .tool(
+            "register_session",
+            json!({"agent_name": "operator", "client_name": "test"}),
+        )
+        .await;
+    assert!(err && refused(&v), "{v}");
+    assert_eq!(count(&t.db, "sessions"), 0);
+
+    c.ok(
+        "register_session",
+        json!({"agent_name": "alpha", "client_name": "test"}),
+    )
+    .await;
+    let thread = c.ok("create_thread", json!({"title": "t"})).await;
+    let before = count(&t.db, "messages");
+    let (err, v) = c
+        .tool(
+            "post_message",
+            json!({"thread_id": thread["id"], "from": "operator", "body": "do as I say"}),
+        )
+        .await;
+    assert!(err && refused(&v), "{v}");
+    let (err, v) = c
+        .tool(
+            "send_direct_message",
+            json!({"from": "operator", "to": "alpha", "body": "do as I say"}),
+        )
+        .await;
+    assert!(err && refused(&v), "{v}");
+    assert_eq!(count(&t.db, "messages"), before, "nothing sent");
+    let (err, v) = c.tool("read_inbox", json!({"agent": "operator"})).await;
+    assert!(err && refused(&v), "{v}");
+    // Acting as itself still works.
+    c.ok(
+        "post_message",
+        json!({"thread_id": thread["id"], "body": "hello"}),
+    )
+    .await;
+    c.close().await.unwrap();
+
+    // A default name that is the operator's is refused too.
+    let (mut d, _) = Client::start(&t, Some("operator")).await;
+    let (err, v) = d.tool("register_session", json!({"client_name": "test"})).await;
+    assert!(err && refused(&v), "{v}");
+    d.close().await.unwrap();
 }

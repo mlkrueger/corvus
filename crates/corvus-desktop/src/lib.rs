@@ -4,6 +4,7 @@
 //! The app never binds a socket: the page reaches the data router through the `api` IPC command.
 
 mod app;
+pub mod autostart;
 pub mod background;
 pub mod commands;
 pub mod info;

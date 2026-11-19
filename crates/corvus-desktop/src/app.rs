@@ -1,6 +1,7 @@
 //! Wiring: in-process core, IPC commands, window, tray, single instance, navigation guard, background loop.
 //! Nothing here binds a socket.
 
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use axum::Router;
@@ -13,6 +14,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent, Wry};
 
+use crate::autostart;
 use crate::background::Background;
 use crate::info::{self, AppInfo};
 use crate::ipc::{ApiResponse, dispatch};
@@ -28,6 +30,7 @@ struct AppState {
     corvus: Corvus,
     background: Background,
     updates: Updates,
+    state_dir: PathBuf,
     pause_item: OnceLock<MenuItem<Wry>>,
 }
 
@@ -86,6 +89,18 @@ async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<()
             Err(failed.message().to_owned())
         }
     }
+}
+
+/// Whether the app starts at login.
+#[tauri::command]
+fn get_launch_at_login(app: AppHandle) -> Result<bool, String> {
+    autostart::get(&app)
+}
+
+/// The owner turns launch at login on or off; returns the setting as it now is.
+#[tauri::command]
+fn set_launch_at_login(app: AppHandle, state: State<'_, AppState>, enabled: bool) -> Result<bool, String> {
+    autostart::set(&app, &state.state_dir, enabled)
 }
 
 fn apply_paused(app: &AppHandle, paused: bool) {
@@ -167,8 +182,10 @@ pub fn run(context: tauri::Context<Wry>) {
         )),
         corvus,
         updates: Updates::new(config.update_check),
+        state_dir: config.state_dir.clone(),
         pause_item: OnceLock::new(),
     };
+    let at_login = autostart::launched_at_login(std::env::args());
 
     let app = tauri::Builder::default()
         // Must be registered first: a second launch focuses the existing window and exits.
@@ -177,6 +194,13 @@ pub fn run(context: tauri::Context<Wry>) {
         }))
         // Rust-side only: no updater permission is granted to the page (capabilities/default.json).
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Rust-side only as well: the page has no autostart permission, only the two app commands.
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .app_name(autostart::LAUNCH_AGENT_NAME)
+                .arg(autostart::AT_LOGIN_ARG)
+                .build(),
+        )
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             api,
@@ -184,12 +208,16 @@ pub fn run(context: tauri::Context<Wry>) {
             install_cli,
             set_background_paused,
             check_update,
-            install_update
+            install_update,
+            get_launch_at_login,
+            set_launch_at_login
         ])
         .on_window_event(on_window_event)
-        .setup(|app| {
+        .setup(move |app| {
             WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
                 .title("Corvus")
+                // Started by the login item: menu bar only until the owner opens the window.
+                .visible(!at_login)
                 .inner_size(1200.0, 800.0)
                 .on_navigation(|url| {
                     if navigation_allowed(url) {
@@ -205,6 +233,10 @@ pub fn run(context: tauri::Context<Wry>) {
                 })
                 .build()?;
             build_tray(app.handle())?;
+            if at_login {
+                set_dock_visible(app.handle(), false);
+            }
+            autostart::on_launch(app.handle(), &app.state::<AppState>().state_dir);
             app.state::<AppState>().background.set_paused(false);
             Ok(())
         })

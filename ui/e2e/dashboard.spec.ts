@@ -188,6 +188,10 @@ test.describe('dashboard in a browser engine', () => {
     await expect(page.getByText('/opt/corvus/bin/corvus', { exact: true })).toBeVisible();
     await expect(page.getByText('claude-code')).toBeVisible();
     await expect(page.locator('.snippet').first()).toContainText('"args":["mcp"]');
+    const atLogin = page.getByRole('checkbox', { name: 'Start Corvus at login' });
+    await expect(atLogin).toBeChecked();
+    await atLogin.uncheck();
+    await expect(atLogin).not.toBeChecked();
   });
 
   test('narrow viewport: one column, no page overflow; screenshot', async ({ page, h }, info) => {
