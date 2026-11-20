@@ -93,25 +93,49 @@ macro_rules! int_id {
     };
 }
 
-uuid_id!(/// Session id.
-    SessionId, "session");
-uuid_id!(/// Task id.
-    TaskId, "task");
-uuid_id!(/// Claim id.
-    ClaimId, "claim");
-uuid_id!(/// Thread id.
-    ThreadId, "thread");
-uuid_id!(/// Decision id.
-    DecisionId, "decision");
-uuid_id!(/// Artifact id.
-    ArtifactId, "artifact");
+uuid_id!(
+    /// Session id.
+    SessionId,
+    "session"
+);
+uuid_id!(
+    /// Task id.
+    TaskId,
+    "task"
+);
+uuid_id!(
+    /// Claim id.
+    ClaimId,
+    "claim"
+);
+uuid_id!(
+    /// Thread id.
+    ThreadId,
+    "thread"
+);
+uuid_id!(
+    /// Decision id.
+    DecisionId,
+    "decision"
+);
+uuid_id!(
+    /// Artifact id.
+    ArtifactId,
+    "artifact"
+);
 
-int_id!(/// Message id (autoincrement).
-    MessageId);
-int_id!(/// Digest id (autoincrement).
-    DigestId);
-int_id!(/// Audit event id (autoincrement).
-    EventId);
+int_id!(
+    /// Message id (autoincrement).
+    MessageId
+);
+int_id!(
+    /// Digest id (autoincrement).
+    DigestId
+);
+int_id!(
+    /// Audit event id (autoincrement).
+    EventId
+);
 
 #[cfg(test)]
 mod tests {
