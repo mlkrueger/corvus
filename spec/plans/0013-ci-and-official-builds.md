@@ -31,7 +31,7 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
 - [x] 6. Create the `release` environment (owner approval required); owner exports the certificate and sets
         `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD` and the variable `CORVUS_SIGN_IDENTITY`.
 - [x] 7. Manual run of `release.yml` (no publish): all jobs green, artifacts inspected.
-- [ ] 8. First tagged release from the workflow.
+- [x] 8. First tagged release from the workflow.
 
 ## Verification
 
@@ -41,13 +41,22 @@ of the desktop app; browser-engine and GUI tests in CI (`make test-e2e` stays a 
       and the app signed (signature present; the step printed no `Authority` line because it used `-dv`, now
       `-dvv`); both Linux smoke tests pass on native runners.
 - [ ] Tagged run with the certificate missing fails before building.
+- [x] Tagged release v0.1.0 (run 44794921450, 2026-11-20), published by the workflow after the owner approved the
+      `release` environment (once for the macOS job, once for publish). The Release holds the four binary
+      archives, the app zip, the update archive and its `.sig`, `latest.json` (darwin-aarch64, signed) and
+      `SHA256SUMS`; every downloaded archive matches it. Downloaded binary and app: `codesign --verify --strict`
+      (and `--deep` for the app) pass, Authority=Corvus; `spctl` rejects the quarantined app before the override,
+      as expected. The downloaded x86_64 Linux binary in a stock `debian:stable-slim` container: `corvus
+      --version` → 0.1.0 (commit 5351ffb), `corvus health` → ok, schema 8. The first tag (run 44563163856) failed
+      before building because the `release` environment had no updater key — the same guard the certificate
+      check uses; the tag was moved after the key was added and a rustfmt drift in CI was fixed.
 - [ ] Tagged run: the GitHub Release holds the five archives and `SHA256SUMS`; a downloaded app opens after the
       Gatekeeper override; a downloaded Linux binary passes `corvus health`.
 
 ## Exit criteria
 
-- [ ] `make lint` and `make test` pass locally and in CI.
-- [ ] One release published entirely by the workflow.
+- [x] `make lint` and `make test` pass locally and in CI.
+- [x] One release published entirely by the workflow.
 
 ## Open questions
 
